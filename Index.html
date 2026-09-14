@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>حضور الباص</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    margin: 0; background: #0f172a; color: #e2e8f0; min-height: 100vh;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; text-align: center; margin: 8px 0 16px; }
+  .card { background: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-size: 14px; margin: 10px 0 6px; color: #94a3b8; }
+  input, select, button {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    font-size: 16px; font-family: inherit;
+  }
+  input, select { background: #334155; color: #fff; }
+  button { background: #2563eb; color: #fff; font-weight: 700; margin-top: 12px; cursor: pointer; }
+  button:active { opacity: .85; }
+  .toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+  .toggle button { margin: 0; background: #334155; }
+  .toggle button.active-in  { background: #16a34a; }
+  .toggle button.active-out { background: #ea580c; }
+  #reader { width: 100%; border-radius: 12px; overflow: hidden; }
+  .seats { text-align: center; font-size: 15px; padding: 10px; background: #334155; border-radius: 12px; margin-bottom: 12px; }
+  .seats b { font-size: 22px; color: #38bdf8; }
+  #result { display: none; text-align: center; padding: 22px 16px; border-radius: 16px; margin-top: 14px; }
+  #result img { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; border: 4px solid rgba(255,255,255,.6); margin-bottom: 10px; background:#475569; }
+  #result .name { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+  #result .msg  { font-size: 18px; font-weight: 700; }
+  .green  { background: #16a34a; color: #fff; }
+  .red    { background: #dc2626; color: #fff; }
+  .orange { background: #ea580c; color: #fff; }
+  .blue   { background: #0284c7; color: #fff; }
+  .muted { font-size: 12px; color: #64748b; text-align: center; margin-top: 8px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚌 حضور وانصراف الباص</h1>
+
+  <!-- شاشة الدخول -->
+  <div id="login" class="card">
+    <label>اسم المشرف</label>
+    <select id="supName"><option>...</option></select>
+    <label>الرقم السري (PIN)</label>
+    <input id="pin" type="tel" inputmode="numeric" placeholder="****">
+    <button onclick="doLogin()">دخول</button>
+    <div id="loginMsg" class="muted"></div>
+  </div>
+
+  <!-- شاشة الاسكانر -->
+  <div id="app" class="hidden">
+    <div class="seats">الكراسي الفاضلة: <b id="seats">--</b></div>
+    <div class="toggle">
+      <button id="btnIn"  class="active-in"  onclick="setMode('IN')">🟢 ركوب</button>
+      <button id="btnOut" onclick="setMode('OUT')">🟠 نزول</button>
+    </div>
+    <div class="card">
+      <div id="reader"></div>
+      <div id="fallback" class="hidden">
+        <label>📷 صوّر كود الطالب</label>
+        <input id="qrFile" type="file" accept="image/*" capture="environment" onchange="scanFromFile(this)">
+        <label>⌨️ أو اكتب رقم الطالب يدوي</label>
+        <input id="manualId" type="tel" inputmode="numeric" placeholder="1001">
+        <button onclick="manualScan()">تسجيل</button>
+      </div>
+    </div>
+    <div id="result"></div>
+    <div class="muted">وجّه الكاميرا على كود الطالب</div>
+    <button onclick="logout()" style="background:#475569;margin-top:16px">خروج</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+/* ===================================================================
+   حطّ هنا لينك الـ Web app بتاعك (اللي بينتهي بـ /exec)
+   =================================================================== */
+var API_URL = 'https://script.google.com/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec';
+
+var USER = null, MODE = 'IN', scanner = null, busy = false, lastText = '', lastTime = 0;
+
+/* ---------- نداء الباك إند عن طريق JSONP (مفيش مشاكل CORS) ---------- */
+var _cbSeq = 0;
+function api(params, onOk, onErr){
+  var cb = 'cb_' + (++_cbSeq) + '_' + Date.now();
+  var url = API_URL + (API_URL.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb;
+  for (var k in params) {
+    if (params[k] === undefined || params[k] === null) continue;
+    url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }
+  var s = document.createElement('script');
+  var done = false;
+  var timer = setTimeout(function(){
+    if(done) return; done = true;
+    cleanup(); if(onErr) onErr('انتهت مهلة الاتصال — اتأكد من النت ومن لينك الـ API');
+  }, 20000);
+
+  function cleanup(){
+    clearTimeout(timer);
+    try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+    if(s.parentNode) s.parentNode.removeChild(s);
+  }
+
+  window[cb] = function(res){
+    if(done) return; done = true; cleanup();
+    if(res && res.ok) { if(onOk) onOk(res.data); }
+    else { if(onErr) onErr((res && res.msg) ? res.msg : 'خطأ غير معروف من السيرفر'); }
+  };
+  s.onerror = function(){
+    if(done) return; done = true; cleanup();
+    if(onErr) onErr('فشل الاتصال بالسيرفر — راجع لينك الـ API وصلاحية النشر (Anyone)');
+  };
+  s.src = url;
+  document.body.appendChild(s);
+}
+
+/* ---------- تحميل أسماء المشرفين ---------- */
+api({ fn: 'listSupervisors' }, function(list){
+  var s = document.getElementById('supName');
+  s.innerHTML = '';
+  (list || []).forEach(function(n){
+    var o = document.createElement('option'); o.textContent = n; o.value = n; s.appendChild(o);
+  });
+}, function(msg){
+  document.getElementById('loginMsg').textContent = msg;
+});
+
+function doLogin(){
+  var name = document.getElementById('supName').value;
+  var pin  = document.getElementById('pin').value;
+  document.getElementById('loginMsg').textContent = 'جاري الدخول...';
+  api({ fn:'login', name:name, pin:pin }, function(r){
+    if(!r || !r.ok){ document.getElementById('loginMsg').textContent = (r && r.msg) ? r.msg : 'فشل الدخول'; return; }
+    USER = { name:r.name, role:r.role, pin:pin };
+    document.getElementById('loginMsg').textContent = '';
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    startScanner();
+  }, function(msg){
+    document.getElementById('loginMsg').textContent = msg;
+  });
+}
+
+function setMode(m){
+  MODE = m;
+  document.getElementById('btnIn').className  = (m==='IN')  ? 'active-in'  : '';
+  document.getElementById('btnOut').className = (m==='OUT') ? 'active-out' : '';
+}
+
+/* ---------- الكاميرا ---------- */
+function showFallback(){ document.getElementById('fallback').classList.remove('hidden'); }
+
+function explainErr(e){
+  var n = (e && e.name) ? e.name : '';
+  if(n === 'NotAllowedError' || n === 'PermissionDeniedError')
+    return 'إذن الكاميرا مرفوض — اضغط على أيقونة القفل 🔒 جنب العنوان ← الكاميرا ← سماح، وحدّث الصفحة.';
+  if(n === 'NotFoundError' || n === 'DevicesNotFoundError') return 'مفيش كاميرا متاحة على الجهاز ده.';
+  if(n === 'NotReadableError' || n === 'TrackStartError') return 'الكاميرا مشغولة بتطبيق تاني أو مقفولة من زرار الخصوصية.';
+  if(n === 'OverconstrainedError') return 'الكاميرا الخلفية مش متاحة — بجرّب كاميرا تانية.';
+  if(n === 'SecurityError') return 'لازم الصفحة تكون HTTPS.';
+  return (e && e.message) ? e.message : String(e);
+}
+
+function showCameraError(msg){
+  var el = document.getElementById('result');
+  el.style.display='block'; el.className='red';
+  el.innerHTML='<div class="msg">' + msg + '</div>';
+  console.error('Camera error:', msg);
+}
+
+function startScanner(){
+  if (!window.isSecureContext) { showCameraError('الصفحة لازم تكون HTTPS.'); showFallback(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCameraError('المتصفح ما بيدعمش الوصول للكاميرا هنا.'); showFallback(); return;
+  }
+  if (typeof Html5Qrcode === 'undefined') {
+    showCameraError('مكتبة قارئ الـ QR ما اتحمّلتش — اعمل Refresh.'); showFallback(); return;
+  }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+    .then(function(stream){
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      launchQr();
+    })
+    .catch(function(e){ console.error(e); showCameraError(explainErr(e)); showFallback(); });
+}
+
+function launchQr(){
+  try { scanner = new Html5Qrcode("reader"); }
+  catch (e) { showCameraError('فشل تجهيز القارئ: ' + explainErr(e)); showFallback(); return; }
+  var cfg = { fps: 10, qrbox: { width: 240, height: 240 } };
+  scanner.start({ facingMode: "environment" }, cfg, onScan)
+    .catch(function(e){
+      Html5Qrcode.getCameras().then(function(cams){
+        if(!cams || !cams.length){ showCameraError(explainErr(e)); showFallback(); return; }
+        var id = cams[cams.length - 1].id;
+        scanner.start({ deviceId: { exact: id } }, cfg, onScan)
+          .catch(function(e2){ showCameraError(explainErr(e2)); showFallback(); });
+      }).catch(function(){ showCameraError(explainErr(e)); showFallback(); });
+    });
+}
+
+function scanFromFile(input){
+  if(!input.files || !input.files.length) return;
+  var runner = scanner || new Html5Qrcode("reader");
+  runner.scanFile(input.files[0], true)
+    .then(function(text){ onScan(text); })
+    .catch(function(){ showResult({color:'red', msg:'مش قادر أقرا الكود من الصورة — صوّر تاني من قريب'}); })
+    .then(function(){ input.value = ''; });
+}
+
+function manualScan(){
+  var el = document.getElementById('manualId');
+  var v = (el.value || '').trim();
+  if(!v) return;
+  lastText = ''; lastTime = 0;
+  onScan(v);
+  el.value = '';
+}
+
+/* ---------- القراءة والتسجيل ---------- */
+function onScan(text){
+  var now = Date.now();
+  if(busy) return;
+  if(text === lastText && (now - lastTime) < 4000) return;
+  busy = true; lastText = text; lastTime = now;
+
+  api({ fn:'handleScan', token:text, action:MODE, name:USER.name, pin:USER.pin },
+    function(res){
+      showResult(res);
+      if(res && typeof res.seats !== 'undefined' && res.seats !== null)
+        document.getElementById('seats').textContent = res.seats;
+      setTimeout(function(){ busy = false; }, 2500);
+    },
+    function(msg){
+      showResult({color:'red', msg:'حصل خطأ — ' + msg});
+      busy = false;
+    });
+}
+
+function showResult(res){
+  var el = document.getElementById('result');
+  el.style.display = 'block';
+  el.className = res.color || 'blue';
+  var html = '';
+  if(res.photo) html += '<img src="' + res.photo + '" onerror="this.style.display=\'none\'">';
+  if(res.name)  html += '<div class="name">' + res.name + '</div>';
+  html += '<div class="msg">' + (res.msg || '') + '</div>';
+  el.innerHTML = html;
+  if(navigator.vibrate) navigator.vibrate(res.ok ? 120 : [80,60,80]);
+}
+
+function logout(){
+  if(scanner){ try{ scanner.stop(); }catch(e){} }
+  location.reload();
+}
+</script>
+</body>
+</html>

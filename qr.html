@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>طباعة أكواد الطلاب</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family:"Segoe UI",Tahoma,Arial,sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }
+  .wrap { max-width: 900px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; text-align:center; margin:10px 0 16px; }
+  .card { background:#1e293b; border-radius:16px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:14px; margin:10px 0 6px; color:#94a3b8; }
+  input, select, button { width:100%; padding:13px; border-radius:12px; border:none; font-size:16px; font-family:inherit; }
+  input, select { background:#334155; color:#fff; }
+  button { background:#2563eb; color:#fff; font-weight:700; margin-top:12px; cursor:pointer; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .row > * { flex:1 1 180px; }
+  .msg { font-size:13px; color:#94a3b8; text-align:center; margin-top:8px; }
+  .hidden { display:none !important; }
+
+  /* كروت الطباعة */
+  #sheet { background:#fff; color:#111; padding:8mm; border-radius:12px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6mm; }
+  .qrcard {
+    border:1.5px dashed #999; border-radius:6px; padding:5mm 3mm;
+    text-align:center; break-inside:avoid; page-break-inside:avoid; background:#fff;
+  }
+  .qrcard img { width:38mm; height:38mm; display:block; margin:0 auto 3mm; }
+  .qrcard .nm { font-size:13pt; font-weight:800; line-height:1.2; }
+  .qrcard .id { font-size:11pt; letter-spacing:1px; color:#444; margin-top:1mm; }
+  .qrcard .dy { font-size:8pt; color:#666; margin-top:1mm; }
+  .qrcard .ft { font-size:7.5pt; color:#888; margin-top:2mm; }
+
+  @media print {
+    body { background:#fff; }
+    .wrap { max-width:none; padding:0; }
+    .noprint { display:none !important; }
+    #sheet { padding:0; border-radius:0; }
+    @page { size:A4; margin:10mm; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="noprint">🖨️ طباعة أكواد الطلاب</h1>
+
+  <div id="login" class="card noprint">
+    <label>اسم المشرف (لازم يكون له صلاحية)</label>
+    <select id="supName"><option>...</option></select>
+    <label>الرقم السري (PIN)</label>
+    <input id="pin" type="tel" inputmode="numeric" placeholder="****">
+    <button onclick="load()">عرض الطلاب</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div id="opts" class="card noprint hidden">
+    <div class="row">
+      <div>
+        <label>مين يتطبع؟</label>
+        <select id="filter" onchange="render()">
+          <option value="active">النشطين بس</option>
+          <option value="all">الكل</option>
+        </select>
+      </div>
+      <div>
+        <label>عدد الكروت في الصف</label>
+        <select id="cols" onchange="render()">
+          <option>2</option><option selected>3</option><option>4</option>
+        </select>
+      </div>
+    </div>
+    <button onclick="window.print()">🖨️ طباعة</button>
+    <div id="count" class="msg"></div>
+  </div>
+
+  <div id="sheet"><div id="grid" class="grid"></div></div>
+</div>
+
+<script>
+/* نفس لينك الـ exec المستخدم في index.html */
+var API_URL = 'https://script.google.com/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec';
+
+var STUDENTS = [], AUTH = null, _cbSeq = 0;
+
+function api(params, onOk, onErr){
+  var cb = 'cb_' + (++_cbSeq) + '_' + Date.now();
+  var url = API_URL + (API_URL.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb;
+  for (var k in params){
+    if (params[k] === undefined || params[k] === null) continue;
+    url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }
+  var s = document.createElement('script'), done = false;
+  var timer = setTimeout(function(){ if(done) return; done = true; clean(); if(onErr) onErr('انتهت مهلة الاتصال'); }, 25000);
+  function clean(){ clearTimeout(timer); try{ delete window[cb]; }catch(e){ window[cb] = undefined; } if(s.parentNode) s.parentNode.removeChild(s); }
+  window[cb] = function(res){ if(done) return; done = true; clean();
+    if(res && res.ok){ if(onOk) onOk(res.data); } else { if(onErr) onErr((res && res.msg) ? res.msg : 'خطأ من السيرفر'); } };
+  s.onerror = function(){ if(done) return; done = true; clean(); if(onErr) onErr('فشل الاتصال بالسيرفر'); };
+  s.src = url;
+  document.body.appendChild(s);
+}
+
+api({ fn:'listSupervisors' }, function(list){
+  var sel = document.getElementById('supName');
+  sel.innerHTML = '';
+  (list || []).forEach(function(n){
+    var o = document.createElement('option'); o.textContent = n; o.value = n; sel.appendChild(o);
+  });
+}, function(m){ document.getElementById('msg').textContent = m; });
+
+function load(){
+  AUTH = { name: document.getElementById('supName').value, pin: document.getElementById('pin').value };
+  document.getElementById('msg').textContent = 'جاري التحميل...';
+  api({ fn:'listStudents', name:AUTH.name, pin:AUTH.pin }, function(rows){
+    STUDENTS = rows || [];
+    document.getElementById('msg').textContent = '';
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('opts').classList.remove('hidden');
+    render();
+  }, function(m){ document.getElementById('msg').textContent = m; });
+}
+
+function qrUrl(text){
+  return 'https://quickchart.io/qr?size=400&margin=1&text=' + encodeURIComponent(text);
+}
+function qrFallback(img, text){
+  img.onerror = null;
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(text);
+}
+
+function render(){
+  var onlyActive = document.getElementById('filter').value === 'active';
+  var cols = document.getElementById('cols').value;
+  var grid = document.getElementById('grid');
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+  grid.innerHTML = '';
+
+  var list = STUDENTS.filter(function(st){
+    if(!String(st.name || '').trim()) return false;   // من غير اسم = مش بيتطبع
+    if(!onlyActive) return true;
+    var a = String(st.active).toLowerCase();
+    return !(a === 'no' || a === 'لا' || a === 'false');
+  });
+
+  list.forEach(function(st){
+    var d = document.createElement('div');
+    d.className = 'qrcard';
+    var img = document.createElement('img');
+    img.src = qrUrl(st.id);
+    img.alt = st.id;
+    img.onerror = function(){ qrFallback(img, st.id); };
+    d.appendChild(img);
+    var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = st.name; d.appendChild(nm);
+    var id = document.createElement('div'); id.className = 'id'; id.textContent = st.id; d.appendChild(id);
+    if(st.days){ var dy = document.createElement('div'); dy.className='dy'; dy.textContent = st.days; d.appendChild(dy); }
+    var ft = document.createElement('div'); ft.className='ft'; ft.textContent = 'أتوبيس الخير'; d.appendChild(ft);
+    grid.appendChild(d);
+  });
+
+  document.getElementById('count').textContent = 'عدد الكروت: ' + list.length;
+}
+</script>
+</body>
+</html>

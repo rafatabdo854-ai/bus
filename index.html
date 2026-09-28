@@ -2,264 +2,1058 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>حضور الباص</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2D2F93">
+<title>أتوبيس الخير — جمعية القوافل</title>
+<link rel="icon" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Lalezar&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-    margin: 0; background: #0f172a; color: #e2e8f0; min-height: 100vh;
-  }
-  .wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 20px; text-align: center; margin: 8px 0 16px; }
-  .card { background: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
-  label { display: block; font-size: 14px; margin: 10px 0 6px; color: #94a3b8; }
-  input, select, button {
-    width: 100%; padding: 14px; border-radius: 12px; border: none;
-    font-size: 16px; font-family: inherit;
-  }
-  input, select { background: #334155; color: #fff; }
-  button { background: #2563eb; color: #fff; font-weight: 700; margin-top: 12px; cursor: pointer; }
-  button:active { opacity: .85; }
-  .toggle { display: flex; gap: 8px; margin-bottom: 12px; }
-  .toggle button { margin: 0; background: #334155; }
-  .toggle button.active-in  { background: #16a34a; }
-  .toggle button.active-out { background: #ea580c; }
-  #reader { width: 100%; border-radius: 12px; overflow: hidden; }
-  .seats { text-align: center; font-size: 15px; padding: 10px; background: #334155; border-radius: 12px; margin-bottom: 12px; }
-  .seats b { font-size: 22px; color: #38bdf8; }
-  #result { display: none; text-align: center; padding: 22px 16px; border-radius: 16px; margin-top: 14px; }
-  #result img { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; border: 4px solid rgba(255,255,255,.6); margin-bottom: 10px; background:#475569; }
-  #result .name { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
-  #result .msg  { font-size: 18px; font-weight: 700; }
-  .green  { background: #16a34a; color: #fff; }
-  .red    { background: #dc2626; color: #fff; }
-  .orange { background: #ea580c; color: #fff; }
-  .blue   { background: #0284c7; color: #fff; }
-  .muted { font-size: 12px; color: #64748b; text-align: center; margin-top: 8px; }
-  .hidden { display: none !important; }
+:root{
+  --indigo:#2D2F93; --indigo-deep:#1C1E6B; --green:#3DAE49; --green-deep:#23863A;
+  --paper:#F3F4FB; --card:#FFFFFF; --ink:#14163A; --muted:#5E6190; --line:#DADCF0;
+  --red:#D93445; --amber:#E58A00; --blue:#2F7BD9;
+  --display:"Lalezar","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ --paper:#10112E; --card:#1A1C45; --ink:#EDEEFF; --muted:#A3A6D6; --line:#2C2F66; }
+}
+*,*::before,*::after{box-sizing:inherit;-webkit-tap-highlight-color:transparent}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font:16px/1.6 var(--body)}
+button,input,select,textarea{font:inherit;color:inherit}
+img{max-width:100%}
+.hidden{display:none!important}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+
+/* ---------- login ---------- */
+#vLogin{min-height:100vh;background:var(--indigo);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+#vLogin .logo{width:min(300px,78vw);margin-bottom:20px}
+.loginBox{width:100%;max-width:360px;background:var(--card);color:var(--ink);border-radius:22px;padding:22px}
+.loginBox h1{font:32px/1.2 var(--display);margin:0 0 4px;color:var(--indigo)}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .loginBox h1{color:#fff} }
+.loginBox p{margin:0 0 14px;color:var(--muted);font-size:14px}
+
+/* ---------- form bits ---------- */
+label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px;font-weight:500}
+.inp{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);font-size:16px}
+.inp:focus{border-color:var(--indigo);outline:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:12px;border:0;background:var(--indigo);color:#fff;font-weight:700;cursor:pointer;min-height:46px}
+.btn:active{transform:scale(.98)}
+.btn.block{width:100%}
+.btn.green{background:var(--green-deep)}
+.btn.ghost{background:transparent;color:var(--indigo);border:1.5px solid var(--line)}
+.btn.danger{background:transparent;color:var(--red);border:1.5px solid color-mix(in srgb,var(--red) 40%,transparent)}
+.btn.wa{background:#1FA855}
+.btn:disabled{opacity:.55}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .btn.ghost{color:#C9CBFF} }
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.err{color:var(--red);font-size:14px;min-height:22px;margin-top:8px}
+
+/* ---------- app shell ---------- */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--indigo);color:#fff;display:flex;align-items:center;gap:10px;padding:8px 14px}
+header.top img{height:40px;border-radius:6px}
+header.top .t{flex:1;line-height:1.2}
+header.top .t b{font:22px var(--display);display:block;font-weight:400}
+header.top .t small{opacity:.8;font-size:12px}
+.iconbtn{background:rgba(255,255,255,.12);border:0;color:#fff;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:14px 14px 96px}
+nav.bottom{position:fixed;bottom:0;left:0;right:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.bottom button{flex:1;background:none;border:0;padding:8px 2px 6px;color:var(--muted);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+nav.bottom button svg{width:24px;height:24px}
+nav.bottom button.on{color:var(--indigo);font-weight:700}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) nav.bottom button.on{color:#fff} }
+h2.pg{font:26px/1.3 var(--display);font-weight:400;margin:6px 0 12px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+.muted{color:var(--muted);font-size:14px}
+
+/* ---------- scan: trip picker ---------- */
+.dayHead{font:30px/1.2 var(--display);margin:4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chip{padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);cursor:pointer;font-size:14px}
+.chip.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.kindBtns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.kindBtns button{border:0;border-radius:20px;padding:26px 10px;color:#fff;font:34px var(--display);cursor:pointer}
+.kindBtns .go{background:var(--indigo)} .kindBtns .back{background:var(--green-deep)}
+.kindBtns small{display:block;font:14px var(--body);opacity:.85}
+
+/* ---------- scan: live trip ---------- */
+#tripLive{margin:-14px -14px 0;padding:14px;background:var(--indigo-deep);color:#fff;min-height:calc(100vh - 56px)}
+.tripBar{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+.tripBar b{font:20px var(--display);font-weight:400}
+.count{display:flex;align-items:flex-end;gap:14px;margin:8px 0 10px}
+.count .n{font:64px/0.9 var(--display)}
+.count .of{font-size:15px;opacity:.85;line-height:1.4}
+.count .of b{font:24px var(--display);font-weight:400;color:#8FE39A}
+.bus{position:relative;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.2);border-radius:14px 34px 34px 14px;padding:8px 38px 8px 10px}
+.bus::before{content:"";position:absolute;right:8px;top:14px;bottom:14px;width:18px;border-radius:10px 16px 16px 10px;background:rgba(255,255,255,.18)}
+.seats{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,1fr);gap:4px;direction:rtl}
+.aisle{height:8px}
+.seat{height:14px;border-radius:4px 4px 6px 6px;background:rgba(255,255,255,.16)}
+.seat.on{background:var(--green);box-shadow:0 0 0 1px #8FE39A inset}
+#reader{margin-top:12px;border-radius:18px;overflow:hidden;background:#000;min-height:240px}
+#reader video{object-fit:cover}
+.scanActs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.scanActs button{background:rgba(255,255,255,.1);border:0;color:#fff;border-radius:14px;padding:10px 4px;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.scanActs button svg{width:22px;height:22px}
+.scanActs .end{background:#C92F3E}
+.camErr{padding:20px;text-align:center;font-size:14px}
+
+/* ---------- verdict ---------- */
+#verdict{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:24px;padding-top:calc(24px + env(safe-area-inset-top,0px))}
+#verdict.ok{background:#1E8C3A} #verdict.bad{background:#C22A3A} #verdict.warn{background:#C77700} #verdict.info{background:#2766B8}
+#verdict .ph{width:min(200px,50vw);aspect-ratio:1;border-radius:50%;object-fit:cover;border:6px solid rgba(255,255,255,.85);background:rgba(255,255,255,.18);display:grid;place-items:center;font:64px var(--display)}
+#verdict .nm{font:34px/1.2 var(--display);margin-top:16px}
+#verdict .cd{opacity:.85;font-size:15px}
+#verdict .vd{font:46px/1.2 var(--display);margin-top:14px}
+#verdict .sub{font-size:17px;margin-top:6px;max-width:30ch}
+#verdict .tap{position:absolute;bottom:calc(22px + env(safe-area-inset-bottom,0px));opacity:.7;font-size:13px}
+@media (prefers-reduced-motion:no-preference){ #verdict:not(.hidden){animation:pop .18s ease-out} @keyframes pop{from{opacity:.4;transform:scale(1.04)}} }
+
+/* ---------- lists ---------- */
+.search{display:flex;gap:8px;margin-bottom:10px}
+.stu{display:flex;align-items:center;gap:12px;padding:10px;border-radius:14px;background:var(--card);border:1px solid var(--line);margin-bottom:8px;cursor:pointer;width:100%;text-align:right}
+.av{width:48px;height:48px;border-radius:50%;object-fit:cover;flex:none;background:var(--line);display:grid;place-items:center;font:20px var(--display);color:var(--indigo)}
+.stu .i{flex:1;min-width:0}
+.stu .i b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stu .i span{font-size:13px;color:var(--muted)}
+.tag{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--paper);border:1px solid var(--line);white-space:nowrap}
+.tag.red{color:#fff;background:var(--red);border-color:var(--red)}
+.tag.green{color:#fff;background:var(--green-deep);border-color:var(--green-deep)}
+.dayDots{display:flex;gap:3px;margin-top:3px}
+.dayDots i{width:16px;height:16px;border-radius:5px;background:var(--line);font:10px/16px var(--body);text-align:center;font-style:normal;color:var(--muted)}
+.dayDots i.on{background:var(--indigo);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px}
+.stat b{font:34px/1 var(--display);font-weight:400;display:block}
+.stat span{font-size:13px;color:var(--muted)}
+.tripCard{border-inline-start:5px solid var(--indigo)}
+.tripCard.closed{border-inline-start-color:var(--muted)}
+.meter{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:8px 0}
+.meter i{display:block;height:100%;background:var(--green)}
+details summary{cursor:pointer;font-weight:700;padding:6px 0}
+.li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px;align-items:center}
+.li:last-child{border-bottom:0}
+
+/* ---------- sheet / modal ---------- */
+.sheetWrap{position:fixed;inset:0;z-index:50;background:rgba(10,11,40,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+@media (min-width:700px){ .sheetWrap{align-items:center} .sheet{border-radius:24px} }
+.sheet h3{font:24px var(--display);font-weight:400;margin:0 0 8px;display:flex;justify-content:space-between;align-items:center}
+.sheet h3 button{background:var(--paper);border:0;border-radius:10px;width:36px;height:36px;cursor:pointer}
+.photoPick{display:flex;align-items:center;gap:14px;margin:6px 0}
+.photoPick .av{width:88px;height:88px;font-size:34px}
+.dayPick{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dayPick button{padding:10px 0;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);font-size:13px;cursor:pointer}
+.dayPick button.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+.switch{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+.switch input{width:48px;height:28px;accent-color:var(--red)}
+#cardPrev{width:100%;border-radius:14px;box-shadow:0 2px 0 var(--line)}
+.linkBox{font-size:13px;word-break:break-all;background:var(--paper);border-radius:10px;padding:8px 10px;margin-top:6px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:70;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-size:14px;max-width:90vw}
+.wide{overflow-x:auto}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🚌 حضور وانصراف الباص</h1>
 
-  <!-- شاشة الدخول -->
-  <div id="login" class="card">
-    <label>اسم المشرف</label>
-    <select id="supName"><option>...</option></select>
-    <label>الرقم السري (PIN)</label>
-    <input id="pin" type="tel" inputmode="numeric" placeholder="****">
-    <button onclick="doLogin()">دخول</button>
-    <div id="loginMsg" class="muted"></div>
-  </div>
+<!-- =================== LOGIN =================== -->
+<section id="vLogin" class="hidden">
+  <img class="logo" src="logo.jpg" alt="جمعية القوافل للمساعدات الإنسانية">
+  <form class="loginBox" id="loginForm" autocomplete="on">
+    <h1>أتوبيس الخير</h1>
+    <p>دخول المشرفين والإدارة</p>
+    <label class="f" for="lgUser">اسم الدخول</label>
+    <input class="inp" id="lgUser" autocomplete="username" placeholder="user.name" autocapitalize="none" required>
+    <label class="f" for="lgPin">الرقم السري (PIN)</label>
+    <input class="inp" id="lgPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••••" required>
+    <div class="err" id="lgErr"></div>
+    <button class="btn block" id="lgBtn">دخول</button>
+  </form>
+</section>
 
-  <!-- شاشة الاسكانر -->
-  <div id="app" class="hidden">
-    <div class="seats">الكراسي الفاضلة: <b id="seats">--</b></div>
-    <div class="toggle">
-      <button id="btnIn"  class="active-in"  onclick="setMode('IN')">🟢 ركوب</button>
-      <button id="btnOut" onclick="setMode('OUT')">🟠 نزول</button>
-    </div>
-    <div class="card">
-      <div id="reader"></div>
-      <div id="fallback" class="hidden">
-        <label>📷 صوّر كود الطالب</label>
-        <input id="qrFile" type="file" accept="image/*" capture="environment" onchange="scanFromFile(this)">
-        <label>⌨️ أو اكتب رقم الطالب يدوي</label>
-        <input id="manualId" type="tel" inputmode="numeric" placeholder="1001">
-        <button onclick="manualScan()">تسجيل</button>
+<!-- =================== APP =================== -->
+<section id="vApp" class="hidden">
+  <header class="top">
+    <img src="logo.jpg" alt="">
+    <div class="t"><b id="hdTitle">أتوبيس الخير</b><small id="hdUser"></small></div>
+    <button class="iconbtn" id="btnLogout" aria-label="خروج" title="خروج">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- ---------- SCAN ---------- -->
+    <div id="pScan" class="page">
+      <div id="tripPick">
+        <div class="muted" id="pickDate"></div>
+        <div class="dayHead" id="pickDay"></div><div class="err" id="pickErr"></div>
+        <div id="pickBusWrap"><label class="f">الباص</label><div class="chips" id="pickBus"></div></div>
+        <div class="kindBtns">
+          <button class="go" data-kind="go">ذهاب<small>بداية اليوم</small></button>
+          <button class="back" data-kind="back">عودة<small>آخر اليوم</small></button>
+        </div>
+        <p class="muted" style="margin-top:14px">اختار الرحلة وابدأ امسح الكروت على طول — الكاميرا بتفضل شغالة.</p>
+      </div>
+
+      <div id="tripLive" class="hidden">
+        <div class="tripBar"><div><b id="lvBus"></b> — <span id="lvKind"></span></div><span id="lvExp"></span></div>
+        <div class="count"><div class="n" id="lvN">0</div><div class="of">من <span id="lvCap">28</span> كرسي<br><b id="lvFree">28</b> فاضي</div></div>
+        <div class="bus" aria-hidden="true"><div class="seats" id="seatsA"></div><div class="aisle"></div><div class="seats" id="seatsB"></div></div>
+        <div id="reader"></div>
+        <div class="scanActs">
+          <button id="actManual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>يدوي</button>
+          <button id="actUndo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>تراجع</button>
+          <button id="actList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>الركاب</button>
+          <button id="actEnd" class="end"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>إنهاء</button>
+        </div>
       </div>
     </div>
-    <div id="result"></div>
-    <div class="muted">وجّه الكاميرا على كود الطالب</div>
-    <button onclick="logout()" style="background:#475569;margin-top:16px">خروج</button>
-  </div>
-</div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- ---------- HOME (admin) ---------- -->
+    <div id="pHome" class="page hidden">
+      <h2 class="pg" id="homeDay"></h2>
+      <div id="tgBanner" class="panel hidden">
+        <b>اربط تليجرام علشان يوصلك تقرير آخر اليوم</b>
+        <p class="muted" style="margin:4px 0 10px">افتح الرابط ودوس Start في البوت.</p>
+        <a class="btn block" id="tgLinkBtn" target="_blank" rel="noopener">فتح البوت</a>
+      </div>
+      <div class="stats" id="homeStats"></div>
+      <div id="homeTrips"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="homeScan">افتح المسح</button>
+        <button class="btn ghost" id="homeReport">ابعت تقرير النهارده</button>
+      </div>
+    </div>
+
+    <!-- ---------- STUDENTS ---------- -->
+    <div id="pStudents" class="page hidden">
+      <h2 class="pg">الطلاب</h2>
+      <div class="search">
+        <input class="inp" id="stQ" placeholder="بحث بالاسم أو الكود أو الرقم" type="search">
+        <button class="btn" id="stAdd" aria-label="إضافة طالب">+ طالب</button>
+      </div>
+      <div class="chips" id="stFilter">
+        <button class="chip on" data-f="all">الكل</button>
+        <button class="chip" data-f="today">يومهم النهارده</button>
+        <button class="chip" data-f="susp">موقوفين</button>
+        <button class="chip" data-f="notg">ولي الأمر مش مربوط</button>
+      </div>
+      <div class="muted" id="stCount" style="margin-bottom:8px"></div>
+      <div id="stList"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost" id="stImport">استيراد من Excel</button>
+        <button class="btn ghost" id="stExport">تصدير Excel</button>
+      </div>
+      <input type="file" id="stImportFile" accept=".xlsx,.xls,.csv" class="hidden">
+    </div>
+
+    <!-- ---------- REPORTS ---------- -->
+    <div id="pReports" class="page hidden">
+      <h2 class="pg">التقارير</h2>
+      <div class="row"><input class="inp" type="date" id="rpDate"><button class="btn ghost" id="rpSend">ابعت لتليجرام</button></div>
+      <div id="rpBody" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <div id="pSettings" class="page hidden">
+      <h2 class="pg">الإعدادات</h2>
+      <div class="panel">
+        <div class="row" style="align-items:center"><b>الباصات</b><button class="btn ghost" id="busAdd" style="flex:none">+ باص</button></div>
+        <div id="busList" style="margin-top:8px"></div>
+      </div>
+      <div class="panel">
+        <div class="row" style="align-items:center"><b>المشرفين والإدارة</b><button class="btn ghost" id="userAdd" style="flex:none">+ مستخدم</button></div>
+        <div id="userList" style="margin-top:8px"></div>
+      </div>
+      <div class="panel">
+        <b>تليجرام</b>
+        <p class="muted" style="margin:4px 0 8px" id="myTgState"></p>
+        <a class="btn ghost block" id="myTgLink" target="_blank" rel="noopener">ربط حسابي بالبوت</a>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom hidden" id="nav">
+    <button data-p="pHome" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>النهارده</button>
+    <button data-p="pScan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>المسح</button>
+    <button data-p="pStudents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg>الطلاب</button>
+    <button data-p="pReports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7M9 8h3"/></svg>التقارير</button>
+    <button data-p="pSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3.1 15H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.3 8.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5.9z"/></svg>الإعدادات</button>
+  </nav>
+</section>
+
+<div id="verdict" class="hidden" role="alert"></div>
+<div id="sheetHost"></div>
+<div id="toast" class="hidden" role="status"></div>
+
 <script>
-/* ===================================================================
-   حطّ هنا لينك الـ Web app بتاعك (اللي بينتهي بـ /exec)
-   =================================================================== */
-var API_URL = 'https://script.google.com/macros/s/AKfycbyX_jCT3kt6JKMfIRBCeHktbkmv5PXQE4EEyKqf3W2GYZKR-uAR_Tp3nGFy7l8O_VTFXA/exec';
+/* =====================================================================
+   الإعدادات — غيّر دول بس
+   ===================================================================== */
+const CONFIG = {
+  SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
+  BOT_USERNAME: "YourBusBot",          // اسم البوت من غير @
+  ORG: "جمعية القوافل للمساعدات الإنسانية",
+  APP: "أتوبيس الخير",
+  EMAIL_DOMAIN: "bus.local"
+};
 
-var USER = null, MODE = 'IN', scanner = null, busy = false, lastText = '', lastTime = 0;
+/* =====================================================================
+   أدوات
+   ===================================================================== */
+const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const h = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const DAY_SHORT = ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
+const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // يبدأ من السبت
+const DAY_LETTER = ["ح", "ن", "ث", "ر", "خ", "ج", "س"];
+const KIND = { go: "ذهاب", back: "عودة" };
+const todayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+const dowOf = d => new Date(d + "T12:00:00Z").getUTCDay();
+const tm = iso => iso ? new Date(iso).toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" }) : "—";
+const daysText = arr => DAY_ORDER.filter(d => (arr || []).includes(d)).map(d => DAY_NAMES[d]).join("، ") || "لم تُحدد";
+const initial = n => (String(n || "؟").trim()[0] || "؟");
+const avatar = (url, name, cls = "av") => url ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy">` : `<div class="${cls}">${h(initial(name))}</div>`;
 
-/* ---------- نداء الباك إند عن طريق JSONP (مفيش مشاكل CORS) ---------- */
-var _cbSeq = 0;
-function api(params, onOk, onErr){
-  var cb = 'cb_' + (++_cbSeq) + '_' + Date.now();
-  var url = API_URL + (API_URL.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb;
-  for (var k in params) {
-    if (params[k] === undefined || params[k] === null) continue;
-    url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-  }
-  var s = document.createElement('script');
-  var done = false;
-  var timer = setTimeout(function(){
-    if(done) return; done = true;
-    cleanup(); if(onErr) onErr('انتهت مهلة الاتصال — اتأكد من النت ومن لينك الـ API');
-  }, 20000);
+let toastT;
+function toast(msg, ms = 2600) {
+  const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.add("hidden"), ms);
+}
+async function rpc(fn, args) { const { data, error } = await sb.rpc(fn, args); if (error) throw new Error(error.message); return data; }
+async function q(p) { const { data, error } = await p; if (error) throw new Error(error.message); return data; }
+async function fx(action, body) {
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/bot?action=${action}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: "Bearer " + session.access_token, apikey: CONFIG.SUPABASE_ANON_KEY },
+    body: JSON.stringify(body || {})
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "فشل الاتصال بالسيرفر");
+  return j;
+}
+function waPhone(p) {
+  let d = String(p || "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("0")) d = "20" + d.slice(1);
+  else if (d.length === 10 && d.startsWith("1")) d = "20" + d;
+  return d;
+}
+function openWa(phone, text, preWin) {
+  const url = `https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(text)}`;
+  if (preWin && !preWin.closed) preWin.location.href = url; else location.href = url;
+}
+const tgParentLink = s => `https://t.me/${CONFIG.BOT_USERNAME}?start=${s.parent_link_token}`;
 
-  function cleanup(){
-    clearTimeout(timer);
-    try { delete window[cb]; } catch(e){ window[cb] = undefined; }
-    if(s.parentNode) s.parentNode.removeChild(s);
-  }
-
-  window[cb] = function(res){
-    if(done) return; done = true; cleanup();
-    if(res && res.ok) { if(onOk) onOk(res.data); }
-    else { if(onErr) onErr((res && res.msg) ? res.msg : 'خطأ غير معروف من السيرفر'); }
-  };
-  s.onerror = function(){
-    if(done) return; done = true; cleanup();
-    if(onErr) onErr('فشل الاتصال بالسيرفر — راجع لينك الـ API وصلاحية النشر (Anyone)');
-  };
-  s.src = url;
-  document.body.appendChild(s);
+/* ---------- أصوات واهتزاز ---------- */
+let AC;
+function beep(ok) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = ok ? [[880, 0], [1320, .09]] : [[220, 0], [180, .16]];
+    tones.forEach(([f, at]) => {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = ok ? "sine" : "square"; o.frequency.value = f;
+      g.gain.setValueAtTime(.18, AC.currentTime + at); g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + at + .14);
+      o.connect(g).connect(AC.destination); o.start(AC.currentTime + at); o.stop(AC.currentTime + at + .15);
+    });
+  } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(ok ? 90 : [120, 70, 120]);
 }
 
-/* ---------- تحميل أسماء المشرفين ---------- */
-api({ fn: 'listSupervisors' }, function(list){
-  var s = document.getElementById('supName');
-  s.innerHTML = '';
-  (list || []).forEach(function(n){
-    var o = document.createElement('option'); o.textContent = n; o.value = n; s.appendChild(o);
-  });
-}, function(msg){
-  document.getElementById('loginMsg').textContent = msg;
+/* ---------- sheet (نافذة سفلية) ---------- */
+function sheet(title, html, onMount) {
+  const w = document.createElement("div");
+  w.className = "sheetWrap";
+  w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><h3>${h(title)}<button aria-label="إغلاق" data-x>✕</button></h3>${html}</div>`;
+  const close = () => { w.remove(); };
+  w.addEventListener("click", e => { if (e.target === w || e.target.closest("[data-x]")) close(); });
+  $("#sheetHost").appendChild(w);
+  onMount && onMount(w, close);
+  return close;
+}
+
+/* =====================================================================
+   الحالة
+   ===================================================================== */
+let ME = null, BUSES = [], STUDENTS = null, TRIP = null, SCANNER = null;
+let busy = false, lastText = "", lastAt = 0;
+
+/* =====================================================================
+   الدخول
+   ===================================================================== */
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const u = $("#lgUser").value.trim().toLowerCase(), p = $("#lgPin").value.trim();
+  $("#lgErr").textContent = ""; $("#lgBtn").disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: `${u}@${CONFIG.EMAIL_DOMAIN}`, password: p });
+  $("#lgBtn").disabled = false;
+  if (error) { $("#lgErr").textContent = "اسم الدخول أو الرقم السري غلط"; return; }
+  enter();
+});
+$("#btnLogout").onclick = async () => {
+  if (TRIP && !confirm("فيه رحلة شغالة. تخرج؟ (الرحلة هتفضل مفتوحة وتقدر ترجعلها)")) return;
+  await stopScanner(); await sb.auth.signOut(); location.reload();
+};
+
+async function enter() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return showLogin();
+  const { data: prof } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  if (!prof || !prof.active) { await sb.auth.signOut(); showLogin("الحساب ده مش مفعّل — كلّم الإدارة"); return; }
+  ME = prof;
+  $("#vLogin").classList.add("hidden"); $("#vApp").classList.remove("hidden");
+  $("#hdUser").textContent = `${prof.full_name} — ${prof.role === "admin" ? "إدارة" : "مشرف"}`;
+  BUSES = await q(sb.from("buses").select("*").eq("active", true).order("created_at"));
+  if (ME.role === "admin") { $("#nav").classList.remove("hidden"); go("pHome"); }
+  else go("pScan");
+}
+function showLogin(msg) {
+  $("#vApp").classList.add("hidden"); $("#vLogin").classList.remove("hidden");
+  if (msg) $("#lgErr").textContent = msg;
+}
+
+/* ---------- التنقل ---------- */
+$$("#nav button").forEach(b => b.onclick = () => go(b.dataset.p));
+async function go(page) {
+  if (page !== "pScan") await stopScanner();
+  $$(".page").forEach(p => p.classList.toggle("hidden", p.id !== page));
+  $$("#nav button").forEach(b => b.classList.toggle("on", b.dataset.p === page));
+  window.scrollTo(0, 0);
+  try {
+    if (page === "pScan") await initScan();
+    if (page === "pHome") await renderHome();
+    if (page === "pStudents") await renderStudents();
+    if (page === "pReports") await renderReport();
+    if (page === "pSettings") await renderSettings();
+  } catch (e) { toast(e.message); }
+}
+
+/* =====================================================================
+   المسح
+   ===================================================================== */
+async function initScan() {
+  const t = todayStr();
+  $("#pickDate").textContent = t;
+  $("#pickDay").textContent = "النهارده " + DAY_NAMES[dowOf(t)];
+  // رجوع لرحلة مفتوحة
+  const saved = JSON.parse(localStorage.getItem("bus.trip") || "null");
+  if (saved && saved.date === t) {
+    const tr = await q(sb.from("trips").select("id, bus_id, kind, ended_at").eq("id", saved.id).maybeSingle());
+    if (tr && !tr.ended_at) return startTrip(tr.bus_id, tr.kind);
+  }
+  localStorage.removeItem("bus.trip");
+  showPicker();
+}
+function showPicker() {
+  TRIP = null;
+  $("#tripPick").classList.remove("hidden"); $("#tripLive").classList.add("hidden");
+  const last = localStorage.getItem("bus.lastBus");
+  const sel = BUSES.find(b => b.id === last) ? last : BUSES[0]?.id;
+  $("#pickBusWrap").classList.toggle("hidden", BUSES.length < 2);
+  $("#pickBus").innerHTML = BUSES.map(b => `<button class="chip ${b.id === sel ? "on" : ""}" data-id="${b.id}">${h(b.name)}</button>`).join("");
+  $$("#pickBus .chip").forEach(c => c.onclick = () => { $$("#pickBus .chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); });
+  $("#pickErr").textContent = BUSES.length ? "" : "مفيش باصات متسجلة — الإدارة تضيف باص من الإعدادات.";
+}
+$$(".kindBtns button").forEach(b => b.onclick = () => {
+  const bus = $("#pickBus .chip.on")?.dataset.id || BUSES[0]?.id;
+  if (!bus) return;
+  localStorage.setItem("bus.lastBus", bus);
+  startTrip(bus, b.dataset.kind);
 });
 
-function doLogin(){
-  var name = document.getElementById('supName').value;
-  var pin  = document.getElementById('pin').value;
-  document.getElementById('loginMsg').textContent = 'جاري الدخول...';
-  api({ fn:'login', name:name, pin:pin }, function(r){
-    if(!r || !r.ok){ document.getElementById('loginMsg').textContent = (r && r.msg) ? r.msg : 'فشل الدخول'; return; }
-    USER = { name:r.name, role:r.role, pin:pin };
-    document.getElementById('loginMsg').textContent = '';
-    document.getElementById('login').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    startScanner();
-  }, function(msg){
-    document.getElementById('loginMsg').textContent = msg;
+async function startTrip(busId, kind) {
+  try {
+    TRIP = await rpc("start_trip", { p_bus: busId, p_kind: kind });
+  } catch (e) { toast(e.message); return showPicker(); }
+  localStorage.setItem("bus.trip", JSON.stringify({ id: TRIP.id, date: TRIP.trip_date }));
+  $("#tripPick").classList.add("hidden"); $("#tripLive").classList.remove("hidden");
+  $("#lvBus").textContent = TRIP.bus_name; $("#lvKind").textContent = KIND[TRIP.kind];
+  $("#lvExp").textContent = TRIP.kind === "go" ? `متوقع ${TRIP.expected}` : "";
+  renderSeats();
+  startScanner();
+}
+function renderSeats() {
+  const cap = TRIP.capacity, n = TRIP.onboard;
+  $("#lvN").textContent = n; $("#lvCap").textContent = cap; $("#lvFree").textContent = Math.max(cap - n, 0);
+  let A = "", B = "";
+  for (let i = 0; i < cap; i++) {
+    const s = `<div class="seat ${i < n ? "on" : ""}"></div>`;
+    (i % 4 < 2) ? A += s : B += s;
+  }
+  $("#seatsA").innerHTML = A; $("#seatsB").innerHTML = B;
+}
+
+async function startScanner() {
+  await stopScanner();
+  $("#reader").innerHTML = "";
+  SCANNER = new Html5Qrcode("reader", { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE], verbose: false });
+  try {
+    await SCANNER.start({ facingMode: "environment" },
+      { fps: 12, qrbox: (w, hh) => { const s = Math.floor(Math.min(w, hh) * .72); return { width: s, height: s }; } },
+      onScan, () => {});
+  } catch (e) {
+    SCANNER = null;
+    $("#reader").innerHTML = `<div class="camErr">الكاميرا مش شغالة. اسمح للموقع باستخدام الكاميرا من إعدادات المتصفح، أو استخدم زرار "يدوي".<br><br><button class="btn" onclick="startScanner()">حاول تاني</button></div>`;
+  }
+}
+async function stopScanner() {
+  if (!SCANNER) return;
+  try { await SCANNER.stop(); SCANNER.clear(); } catch (e) {}
+  SCANNER = null;
+}
+async function onScan(text) {
+  const now = Date.now();
+  if (busy || (text === lastText && now - lastAt < 5000)) return;
+  lastText = text; lastAt = now; busy = true;
+  try { showVerdict(await rpc("scan_student", { p_trip: TRIP.id, p_token: text })); }
+  catch (e) { showVerdict({ status: "error", msg: e.message }); }
+}
+async function scanByCode(code) {
+  busy = true;
+  try { showVerdict(await rpc("scan_student", { p_trip: TRIP.id, p_code: +code })); }
+  catch (e) { showVerdict({ status: "error", msg: e.message }); }
+}
+
+const VERDICT = {
+  ok:          { c: "ok",   t: "اركب",              ok: true },
+  already:     { c: "info", t: "ركب قبل كده",        ok: true,  s: "متسجّل في الرحلة دي" },
+  not_today:   { c: "bad",  t: "مش يومه النهارده" },
+  suspended:   { c: "bad",  t: "موقوف من الركوب" },
+  other_bus:   { c: "warn", t: "مسجّل على باص تاني" },
+  full:        { c: "warn", t: "الباص كامل" },
+  unknown:     { c: "bad",  t: "كارت غير صالح",      s: "ممكن يكون كارت قديم اتلغى — اتأكد من الإدارة" },
+  trip_closed: { c: "warn", t: "الرحلة اتقفلت" },
+  error:       { c: "warn", t: "مشكلة في الاتصال" }
+};
+let vT;
+function showVerdict(r) {
+  const v = VERDICT[r.status] || VERDICT.error, st = r.student;
+  let sub = v.s || "";
+  if (r.status === "not_today" && st) sub = "أيامه: " + daysText(st.days);
+  if (r.status === "suspended" && st?.reason) sub = st.reason;
+  if (r.status === "full") sub = `${r.capacity} من ${r.capacity} كرسي`;
+  if (r.status === "ok") sub = `كرسي ${r.onboard} من ${r.capacity}`;
+  if (r.status === "error") sub = r.msg || "";
+  const el = $("#verdict");
+  el.className = v.c;
+  el.innerHTML = `
+    ${st ? (st.photo ? `<img class="ph" src="${h(st.photo)}" alt="">` : `<div class="ph">${h(initial(st.name))}</div>`) : ""}
+    ${st ? `<div class="nm">${h(st.name)}</div><div class="cd">كود ${st.code}</div>` : ""}
+    <div class="vd">${v.t}</div><div class="sub">${h(sub)}</div>
+    <div class="tap">اضغط في أي حتة للمتابعة</div>`;
+  beep(!!v.ok);
+  if (typeof r.onboard === "number" && TRIP) { TRIP.onboard = r.onboard; renderSeats(); }
+  clearTimeout(vT);
+  vT = setTimeout(hideVerdict, v.ok ? 1700 : 3800);
+}
+function hideVerdict() { $("#verdict").className = "hidden"; busy = false; }
+$("#verdict").onclick = () => { clearTimeout(vT); hideVerdict(); };
+
+$("#actManual").onclick = () => {
+  sheet("بحث يدوي", `
+    <input class="inp" id="mq" placeholder="اكتب الكود أو جزء من الاسم" autofocus>
+    <div id="mres" style="margin-top:10px"></div>`, (w, close) => {
+    let t;
+    $("#mq", w).oninput = e => {
+      clearTimeout(t);
+      const v = e.target.value.trim();
+      if (v.length < 2) { $("#mres", w).innerHTML = ""; return; }
+      t = setTimeout(async () => {
+        const rows = await rpc("find_student", { q: v }).catch(() => []);
+        $("#mres", w).innerHTML = rows.length ? rows.map(r => `<button class="stu" data-c="${r.code}">${avatar(r.photo, r.name)}<div class="i"><b>${h(r.name)}</b><span>كود ${r.code}</span></div></button>`).join("") : `<p class="muted">مفيش نتيجة</p>`;
+        $$("#mres .stu", w).forEach(b => b.onclick = () => { close(); scanByCode(b.dataset.c); });
+      }, 250);
+    };
+  });
+};
+$("#actUndo").onclick = async () => {
+  if (!confirm("تلغي آخر طالب انت سجّلته؟")) return;
+  try {
+    const r = await rpc("undo_last_ride", { p_trip: TRIP.id });
+    if (!r.ok) return toast("مفيش ركوب تقدر تلغيه");
+    TRIP.onboard = r.onboard; renderSeats(); toast(`اتلغى ركوب ${r.name}`);
+  } catch (e) { toast(e.message); }
+};
+$("#actList").onclick = async () => {
+  const rows = await rpc("trip_riders", { p_trip: TRIP.id }).catch(() => []);
+  sheet(`الركاب (${rows.length})`, rows.length ? rows.map(r => `<div class="stu" style="cursor:default">${avatar(r.photo, r.name)}<div class="i"><b>${h(r.name)}</b><span>كود ${r.code} — ${tm(r.scanned_at)}</span></div></div>`).join("") : `<p class="muted">لسه محدش ركب.</p>`);
+};
+$("#actEnd").onclick = async () => {
+  if (!confirm(`إنهاء رحلة ${KIND[TRIP.kind]}؟${TRIP.kind === "go" ? "\nهيتبعت إشعار غياب لأولياء أمور اللي يومهم ومركبوش." : ""}`)) return;
+  $("#actEnd").disabled = true;
+  try {
+    await rpc("end_trip", { p_trip: TRIP.id });
+    const r = await fx("trip_end", { trip_id: TRIP.id }).catch(e => ({ absent: [], err: e.message }));
+    await stopScanner();
+    const done = { ...TRIP };
+    localStorage.removeItem("bus.trip");
+    const abs = r.absent || [];
+    sheet("الرحلة خلصت", `
+      <div class="stats"><div class="stat"><b>${done.onboard}</b><span>ركبوا من ${done.capacity}</span></div>
+      <div class="stat"><b>${done.kind === "go" ? abs.length : "—"}</b><span>غياب</span></div></div>
+      ${r.err ? `<p class="err">${h(r.err)}</p>` : ""}
+      ${abs.map(a => `<div class="li"><span>${h(a.name)} <span class="muted">(${a.code})</span></span>${a.notified ? `<span class="tag green">اتبلّغ</span>` : `<span class="tag">ولي الأمر مش مربوط</span>`}</div>`).join("")}
+      ${abs.some(a => !a.notified) ? `<p class="muted">الإدارة هتشوف الأسماء دي في التقرير وتبعتلهم واتساب.</p>` : ""}
+      <button class="btn block" data-x style="margin-top:12px">تمام</button>`);
+    showPicker();
+  } catch (e) { toast(e.message); }
+  $("#actEnd").disabled = false;
+};
+
+/* =====================================================================
+   الرئيسية (أدمن)
+   ===================================================================== */
+async function loadStudents(force) {
+  if (!STUDENTS || force) STUDENTS = await q(sb.from("students").select("*").order("full_name"));
+  return STUDENTS;
+}
+async function renderHome() {
+  const t = todayStr(), dow = dowOf(t);
+  $("#homeDay").textContent = `${DAY_NAMES[dow]} ${t}`;
+  const tgUrl = `https://t.me/${CONFIG.BOT_USERNAME}?start=adm_${ME.tg_link_token}`;
+  $("#tgBanner").classList.toggle("hidden", !!ME.tg_chat_id);
+  $("#tgLinkBtn").href = tgUrl;
+
+  const [studs, trips] = await Promise.all([loadStudents(true), q(sb.from("trips").select("*").eq("trip_date", t).order("started_at"))]);
+  const rides = trips.length ? await q(sb.from("rides").select("trip_id").in("trip_id", trips.map(x => x.id))) : [];
+  const cnt = id => rides.filter(r => r.trip_id === id).length;
+  const active = studs.filter(s => !s.suspended);
+  const expected = active.filter(s => s.days.includes(dow));
+  $("#homeStats").innerHTML = `
+    <div class="stat"><b>${expected.length}</b><span>يومهم النهارده</span></div>
+    <div class="stat"><b>${active.length}</b><span>طالب مفعّل</span></div>
+    <div class="stat"><b>${studs.length - active.length}</b><span>موقوف</span></div>
+    <div class="stat"><b>${studs.filter(s => !s.parent_chat_id).length}</b><span>ولي أمر مش مربوط بتليجرام</span></div>`;
+  $("#homeTrips").innerHTML = BUSES.map(b => {
+    const exp = expected.filter(s => s.bus_id === b.id).length;
+    const bt = trips.filter(x => x.bus_id === b.id);
+    return `<div class="panel"><b>${h(b.name)}</b> <span class="muted">— ${b.capacity} كرسي، متوقع ${exp}</span>
+      ${bt.length ? bt.map(x => { const n = cnt(x.id); return `
+        <div class="tripCard ${x.ended_at ? "closed" : ""}" style="padding:8px 10px;margin-top:8px">
+          <div class="li" style="border:0;padding:0"><span>${KIND[x.kind]} — ${x.ended_at ? "خلصت " + tm(x.ended_at) : "شغالة من " + tm(x.started_at)}</span><b>${n} / ${b.capacity}</b></div>
+          <div class="meter"><i style="width:${Math.min(100, n / b.capacity * 100)}%"></i></div></div>`; }).join("")
+      : `<p class="muted" style="margin:6px 0 0">لسه مفيش رحلات النهارده.</p>`}</div>`;
+  }).join("");
+}
+$("#homeScan").onclick = () => go("pScan");
+$("#homeReport").onclick = async () => {
+  try { const r = await fx("report", { date: todayStr() }); toast(r.sent ? "التقرير اتبعت على تليجرام" : "مفيش أدمن مربوط بتليجرام"); }
+  catch (e) { toast(e.message); }
+};
+
+/* =====================================================================
+   الطلاب
+   ===================================================================== */
+let stFilter = "all";
+$("#stQ").oninput = () => drawStudents();
+$$("#stFilter .chip").forEach(c => c.onclick = () => { $$("#stFilter .chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); stFilter = c.dataset.f; drawStudents(); });
+$("#stAdd").onclick = () => editStudent(null);
+async function renderStudents() { await loadStudents(); drawStudents(); }
+function drawStudents() {
+  const v = $("#stQ").value.trim().toLowerCase(), dow = dowOf(todayStr());
+  let list = STUDENTS.filter(s => !v || s.full_name.toLowerCase().includes(v) || String(s.code) === v || (s.phone || "").includes(v) || (s.parent_phone || "").includes(v));
+  if (stFilter === "today") list = list.filter(s => !s.suspended && s.days.includes(dow));
+  if (stFilter === "susp") list = list.filter(s => s.suspended);
+  if (stFilter === "notg") list = list.filter(s => !s.parent_chat_id);
+  $("#stCount").textContent = `${list.length} طالب`;
+  $("#stList").innerHTML = list.length ? list.map(s => `
+    <button class="stu" data-id="${s.id}">${avatar(s.photo_url, s.full_name)}
+      <div class="i"><b>${h(s.full_name)}</b><span>كود ${s.code}${s.address ? " — " + h(s.address) : ""}</span>
+        <div class="dayDots">${DAY_ORDER.map(d => `<i class="${s.days.includes(d) ? "on" : ""}" title="${DAY_NAMES[d]}">${DAY_LETTER[d]}</i>`).join("")}</div></div>
+      ${s.suspended ? `<span class="tag red">موقوف</span>` : ""}
+    </button>`).join("") : `<div class="panel muted">مفيش طلاب هنا. دوس "+ طالب" أو استورد من Excel.</div>`;
+  $$("#stList .stu").forEach(b => b.onclick = () => editStudent(STUDENTS.find(s => s.id === b.dataset.id)));
+}
+
+async function resizeImage(file, max = 600) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const sc = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, "image/jpeg", .85));
+}
+
+function editStudent(s) {
+  const isNew = !s;
+  s = s || { id: crypto.randomUUID(), full_name: "", days: [], bus_id: BUSES[0]?.id, suspended: false };
+  let days = [...(s.days || [])], photoBlob = null;
+  sheet(isNew ? "طالب جديد" : s.full_name, `
+    <div class="photoPick"><div id="edAv">${avatar(s.photo_url, s.full_name || "؟")}</div>
+      <div><label class="btn ghost" for="edPhoto">${s.photo_url ? "تغيير الصورة" : "إضافة صورة"}</label>
+      <input type="file" id="edPhoto" accept="image/*" class="hidden">${isNew ? "" : `<div class="muted" style="margin-top:6px">كود ${s.code}</div>`}</div></div>
+    <label class="f">اسم الطالب</label><input class="inp" id="edName" value="${h(s.full_name)}" required>
+    <div class="row"><div><label class="f">رقم الطالب</label><input class="inp" id="edPhone" type="tel" inputmode="tel" value="${h(s.phone)}" placeholder="01xxxxxxxxx"></div>
+    <div><label class="f">رقم ولي الأمر (واتساب)</label><input class="inp" id="edPPhone" type="tel" inputmode="tel" value="${h(s.parent_phone)}" placeholder="01xxxxxxxxx"></div></div>
+    <label class="f">اسم ولي الأمر</label><input class="inp" id="edPName" value="${h(s.parent_name)}">
+    <label class="f">العنوان / مكان الركوب</label><input class="inp" id="edAddr" value="${h(s.address)}">
+    ${BUSES.length > 1 ? `<label class="f">الباص</label><select class="inp" id="edBus">${BUSES.map(b => `<option value="${b.id}" ${b.id === s.bus_id ? "selected" : ""}>${h(b.name)}</option>`).join("")}</select>` : ""}
+    <label class="f">أيام الركوب</label>
+    <div class="dayPick" id="edDays">${DAY_ORDER.map(d => `<button type="button" data-d="${d}" class="${days.includes(d) ? "on" : ""}">${DAY_SHORT[d]}</button>`).join("")}</div>
+    <div class="switch"><b>إيقاف من الركوب</b><input type="checkbox" id="edSusp" ${s.suspended ? "checked" : ""}></div>
+    <input class="inp ${s.suspended ? "" : "hidden"}" id="edReason" placeholder="سبب الإيقاف (بيظهر للمشرف)" value="${h(s.suspend_reason)}">
+    <label class="f">ملاحظات</label><textarea class="inp" id="edNotes" rows="2">${h(s.notes)}</textarea>
+    <div class="err" id="edErr"></div>
+    <button class="btn block" id="edSave">${isNew ? "إضافة الطالب" : "حفظ التعديلات"}</button>
+    ${isNew ? "" : `
+    <div class="panel" style="margin-top:14px">
+      <b>الكارت وولي الأمر</b>
+      <p class="muted" style="margin:4px 0 8px">تليجرام ولي الأمر: ${s.parent_chat_id ? "مربوط ✓" : "مش مربوط — رابط الربط بيتبعت مع الكارت"}</p>
+      <div class="row"><button class="btn green" id="edCard">كارت الطالب</button><button class="btn ghost" id="edCopy">نسخ رابط تليجرام</button></div>
+    </div>
+    <div class="row" style="margin-top:6px"><button class="btn danger" id="edReissue">إلغاء الكارت وإصدار جديد</button><button class="btn danger" id="edDel">حذف الطالب</button></div>`}
+  `, (w, close) => {
+    $$("#edDays button", w).forEach(b => b.onclick = () => { const d = +b.dataset.d; days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; b.classList.toggle("on"); });
+    $("#edSusp", w).onchange = e => $("#edReason", w).classList.toggle("hidden", !e.target.checked);
+    $("#edPhoto", w).onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      photoBlob = await resizeImage(f);
+      $("#edAv", w).innerHTML = `<img class="av" src="${URL.createObjectURL(photoBlob)}" alt="" style="width:88px;height:88px">`;
+    };
+    $("#edSave", w).onclick = async () => {
+      const name = $("#edName", w).value.trim();
+      if (!name) return $("#edErr", w).textContent = "اكتب اسم الطالب";
+      if (!days.length && !$("#edSusp", w).checked && !confirm("مفيش أيام ركوب متحددة — الطالب مش هيقدر يركب. تحفظ كده؟")) return;
+      $("#edSave", w).disabled = true;
+      try {
+        const row = {
+          id: s.id, full_name: name, phone: $("#edPhone", w).value.trim() || null, parent_phone: $("#edPPhone", w).value.trim() || null,
+          parent_name: $("#edPName", w).value.trim() || null, address: $("#edAddr", w).value.trim() || null,
+          bus_id: $("#edBus", w)?.value || s.bus_id || BUSES[0]?.id || null, days,
+          suspended: $("#edSusp", w).checked, suspend_reason: $("#edSusp", w).checked ? ($("#edReason", w).value.trim() || null) : null,
+          notes: $("#edNotes", w).value.trim() || null
+        };
+        if (photoBlob) {
+          const path = `${s.id}-${Date.now()}.jpg`;
+          const { error } = await sb.storage.from("photos").upload(path, photoBlob, { contentType: "image/jpeg", upsert: true });
+          if (error) throw new Error("رفع الصورة فشل: " + error.message);
+          row.photo_url = sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
+        }
+        await q(isNew ? sb.from("students").insert(row) : sb.from("students").update(row).eq("id", s.id));
+        await loadStudents(true); drawStudents(); close();
+        toast(isNew ? "الطالب اتضاف" : "اتحفظ");
+        if (isNew) { const ns = STUDENTS.find(x => x.id === s.id); ns && cardSheet(ns); }
+      } catch (e) { $("#edErr", w).textContent = e.message; $("#edSave", w).disabled = false; }
+    };
+    if (isNew) return;
+    $("#edCard", w).onclick = () => { close(); cardSheet(s); };
+    $("#edCopy", w).onclick = async () => { await navigator.clipboard.writeText(tgParentLink(s)).catch(() => {}); toast("الرابط اتنسخ"); };
+    $("#edReissue", w).onclick = async () => {
+      if (!confirm("الكارت القديم هيبطل فورًا ولازم تبعت كارت جديد. متأكد؟")) return;
+      try { await rpc("reissue_qr", { p_student: s.id }); await loadStudents(true); close(); cardSheet(STUDENTS.find(x => x.id === s.id)); toast("اتعمل كارت جديد"); }
+      catch (e) { toast(e.message); }
+    };
+    $("#edDel", w).onclick = async () => {
+      if (!confirm(`حذف ${s.full_name} نهائيًا مع سجل ركوبه؟ لو عايز توقفه بس استخدم "إيقاف من الركوب".`)) return;
+      try { await q(sb.from("students").delete().eq("id", s.id)); await loadStudents(true); drawStudents(); close(); toast("اتحذف"); }
+      catch (e) { toast(e.message); }
+    };
   });
 }
 
-function setMode(m){
-  MODE = m;
-  document.getElementById('btnIn').className  = (m==='IN')  ? 'active-in'  : '';
-  document.getElementById('btnOut').className = (m==='OUT') ? 'active-out' : '';
+/* =====================================================================
+   الكارت
+   ===================================================================== */
+const LOGO = new Image(); LOGO.src = "logo.jpg";
+const loadImg = src => new Promise(res => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+function rr(x, X, Y, W, H, R) { x.beginPath(); x.moveTo(X + R, Y); x.arcTo(X + W, Y, X + W, Y + H, R); x.arcTo(X + W, Y + H, X, Y + H, R); x.arcTo(X, Y + H, X, Y, R); x.arcTo(X, Y, X + W, Y, R); x.closePath(); }
+async function renderCard(s) {
+  await Promise.all(["58px Lalezar", "700 30px 'IBM Plex Sans Arabic'", "400 24px 'IBM Plex Sans Arabic'"].map(f => document.fonts.load(f).catch(() => {})));
+  if (!LOGO.complete) await new Promise(r => { LOGO.onload = LOGO.onerror = r; });
+  const W = 1012, H = 638, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d"); x.direction = "rtl";
+  rr(x, 0, 0, W, H, 30); x.clip();
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
+  // الهيدر
+  x.fillStyle = "#2D2F93"; x.fillRect(0, 0, W, 172);
+  if (LOGO.naturalWidth) { const lh = 150, lw = lh * LOGO.naturalWidth / LOGO.naturalHeight; x.drawImage(LOGO, W - lw - 26, 11, lw, lh); }
+  x.fillStyle = "#fff"; x.textAlign = "left"; x.font = "62px Lalezar"; x.fillText(CONFIG.APP, 40, 92);
+  x.font = "400 24px 'IBM Plex Sans Arabic'"; x.globalAlpha = .85; x.fillText("كارت ركوب الطالب", 40, 136); x.globalAlpha = 1;
+  // الصورة
+  const PW = 230, PH = 270, PX = W - 40 - PW, PY = 200;
+  x.save(); rr(x, PX, PY, PW, PH, 24); x.clip();
+  x.fillStyle = "#E7E8F7"; x.fillRect(PX, PY, PW, PH);
+  const ph = s.photo_url ? await loadImg(s.photo_url) : null;
+  if (ph) { const sc = Math.max(PW / ph.width, PH / ph.height), iw = ph.width * sc, ih = ph.height * sc; x.drawImage(ph, PX + (PW - iw) / 2, PY + (PH - ih) / 2, iw, ih); }
+  else { x.fillStyle = "#2D2F93"; x.textAlign = "center"; x.font = "110px Lalezar"; x.fillText(initial(s.full_name), PX + PW / 2, PY + PH / 2 + 38); }
+  x.restore();
+  x.strokeStyle = "#2D2F93"; x.lineWidth = 4; rr(x, PX, PY, PW, PH, 24); x.stroke();
+  // البيانات
+  const TX = PX - 30, TW = TX - 360;
+  x.textAlign = "right"; x.fillStyle = "#14163A";
+  let fs = 52; x.font = `${fs}px Lalezar`;
+  while (x.measureText(s.full_name).width > TW && fs > 30) { fs -= 2; x.font = `${fs}px Lalezar`; }
+  x.fillText(s.full_name, TX, 262);
+  x.font = "700 30px 'IBM Plex Sans Arabic'"; x.fillStyle = "#2D2F93"; x.fillText(`كود ${s.code}`, TX, 318);
+  x.font = "400 23px 'IBM Plex Sans Arabic'"; x.fillStyle = "#5E6190";
+  const bus = BUSES.find(b => b.id === s.bus_id);
+  if (bus) x.fillText(bus.name, TX, 362);
+  // الأيام (سطر أو اتنين)
+  x.font = "700 24px 'IBM Plex Sans Arabic'"; x.fillStyle = "#14163A";
+  const words = DAY_ORDER.filter(d => s.days.includes(d)).map(d => DAY_NAMES[d]);
+  const lines = []; let cur = "أيام الركوب: ";
+  (words.length ? words : ["لم تُحدد"]).forEach((wd, i) => {
+    const add = (i ? "، " : "") + wd;
+    if (x.measureText(cur + add).width > TW && i) { lines.push(cur + "،"); cur = wd; } else cur += add;
+  });
+  lines.push(cur);
+  lines.slice(0, 3).forEach((ln, i) => x.fillText(ln, TX, 408 + i * 36));
+  // QR
+  const qr = qrcode(0, "M"); qr.addData("QB:" + s.qr_token); qr.make();
+  const n = qr.getModuleCount(), QS = 270, cell = QS / n, QX = 44, QY = 196;
+  x.fillStyle = "#fff"; x.fillRect(QX - 12, QY - 12, QS + 24, QS + 24);
+  x.fillStyle = "#14163A";
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (qr.isDark(r, k)) x.fillRect(QX + k * cell, QY + r * cell, Math.ceil(cell), Math.ceil(cell));
+  x.textAlign = "center"; x.fillStyle = "#5E6190"; x.font = "400 20px 'IBM Plex Sans Arabic'";
+  x.fillText("اعرضه على المشرف عند الركوب", QX + QS / 2, QY + QS + 40);
+  // الفوتر
+  x.fillStyle = "#3DAE49"; x.fillRect(0, H - 62, W, 62);
+  x.fillStyle = "#fff"; x.font = "700 22px 'IBM Plex Sans Arabic'";
+  x.fillText(`${CONFIG.ORG} — الكارت شخصي ولا يُنقل لغيره`, W / 2, H - 22);
+  return c;
+}
+const toBlob = c => new Promise(r => c.toBlob(r, "image/png"));
+
+function cardMessage(s, cardUrl) {
+  return `السلام عليكم${s.parent_name ? " أ/ " + s.parent_name : ""}
+ده كارت ركوب ${CONFIG.APP} الخاص بـ *${s.full_name}* (كود ${s.code}).
+أيام الركوب: ${daysText(s.days)}
+يرجى إظهار الكارت للمشرف عند كل ركوب.
+${cardUrl ? "\n🪪 الكارت: " + cardUrl + "\n" : ""}
+🔔 علشان يوصلك إشعار لو مركبش في يومه، افتح الرابط ده ودوس Start:
+${tgParentLink(s)}
+
+${CONFIG.ORG}`;
 }
 
-/* ---------- الكاميرا ---------- */
-function showFallback(){ document.getElementById('fallback').classList.remove('hidden'); }
-
-function explainErr(e){
-  var n = (e && e.name) ? e.name : '';
-  if(n === 'NotAllowedError' || n === 'PermissionDeniedError')
-    return 'إذن الكاميرا مرفوض — اضغط على أيقونة القفل 🔒 جنب العنوان ← الكاميرا ← سماح، وحدّث الصفحة.';
-  if(n === 'NotFoundError' || n === 'DevicesNotFoundError') return 'مفيش كاميرا متاحة على الجهاز ده.';
-  if(n === 'NotReadableError' || n === 'TrackStartError') return 'الكاميرا مشغولة بتطبيق تاني أو مقفولة من زرار الخصوصية.';
-  if(n === 'OverconstrainedError') return 'الكاميرا الخلفية مش متاحة — بجرّب كاميرا تانية.';
-  if(n === 'SecurityError') return 'لازم الصفحة تكون HTTPS.';
-  return (e && e.message) ? e.message : String(e);
+async function cardSheet(s) {
+  const canvas = await renderCard(s);
+  const phones = [["parent", "ولي الأمر", s.parent_phone], ["student", "الطالب", s.phone]].filter(p => p[2]);
+  sheet("كارت " + s.full_name, `
+    <img id="cardPrev" src="${canvas.toDataURL("image/png")}" alt="كارت الطالب">
+    ${phones.length > 1 ? `<div class="chips" id="cdTo">${phones.map((p, i) => `<button class="chip ${i ? "" : "on"}" data-ph="${h(p[2])}">${p[1]}: ${h(p[2])}</button>`).join("")}</div>` : ""}
+    ${phones.length ? "" : `<p class="err">مفيش رقم متسجل — ضيف رقم ولي الأمر من بيانات الطالب.</p>`}
+    <button class="btn wa block" id="cdWa" ${phones.length ? "" : "disabled"} style="margin-top:10px">إرسال واتساب${phones.length === 1 ? " — " + h(phones[0][2]) : ""}</button>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="cdShare">مشاركة الصورة</button>
+      <button class="btn ghost" id="cdDl">تحميل</button>
+    </div>
+    <p class="muted" style="margin-top:10px">"إرسال واتساب" بيفتح شات الرقم المتسجل والرسالة جاهزة ومعاها رابط صورة الكارت. لو عايز الصورة نفسها تتبعت كمرفق دوس "مشاركة الصورة" واختار الشات.</p>`,
+  (w) => {
+    $$("#cdTo .chip", w).forEach(c => c.onclick = () => { $$("#cdTo .chip", w).forEach(x => x.classList.remove("on")); c.classList.add("on"); });
+    const phoneSel = () => $("#cdTo .chip.on", w)?.dataset.ph || phones[0]?.[2];
+    $("#cdWa", w).onclick = async () => {
+      const pre = window.open("", "_blank");
+      $("#cdWa", w).disabled = true; $("#cdWa", w).textContent = "بجهّز الكارت…";
+      try {
+        const blob = await toBlob(canvas), path = `${s.id}-${s.qr_token}.png`;
+        const { error } = await sb.storage.from("cards").upload(path, blob, { contentType: "image/png", upsert: true });
+        if (error) throw new Error(error.message);
+        const url = sb.storage.from("cards").getPublicUrl(path).data.publicUrl;
+        openWa(phoneSel(), cardMessage(s, url), pre);
+      } catch (e) { pre && pre.close(); toast("رفع الكارت فشل: " + e.message); }
+      $("#cdWa", w).disabled = false; $("#cdWa", w).textContent = "إرسال واتساب";
+    };
+    $("#cdShare", w).onclick = async () => {
+      const file = new File([await toBlob(canvas)], `card-${s.code}.png`, { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: cardMessage(s) }); } catch (e) {}
+      } else toast("الجهاز ده مش بيدعم المشاركة — استخدم تحميل");
+    };
+    $("#cdDl", w).onclick = () => { const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = `card-${s.code}.png`; a.click(); };
+  });
 }
 
-function showCameraError(msg){
-  var el = document.getElementById('result');
-  el.style.display='block'; el.className='red';
-  el.innerHTML='<div class="msg">' + msg + '</div>';
-  console.error('Camera error:', msg);
+/* ---------- Excel ---------- */
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+}
+function parseDays(txt) {
+  const t = String(txt || ""), out = [];
+  const keys = [["سبت", 6], ["احد", 0], ["أحد", 0], ["اثنين", 1], ["إثنين", 1], ["اتنين", 1], ["ثلاثاء", 2], ["تلات", 2], ["اربع", 3], ["أربع", 3], ["خميس", 4], ["جمع", 5]];
+  keys.forEach(([k, d]) => { if (t.includes(k) && !out.includes(d)) out.push(d); });
+  return out;
+}
+$("#stImport").onclick = () => $("#stImportFile").click();
+$("#stImportFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    await loadXLSX();
+    const wb = XLSX.read(await f.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const pick = (r, ...names) => { const k = Object.keys(r).find(k => names.some(n => k.replace(/\s/g, "").includes(n))); return k ? String(r[k]).trim() : ""; };
+    const recs = rows.map(r => ({
+      full_name: pick(r, "الاسم", "اسم", "name"),
+      parent_phone: pick(r, "ولىالأمر", "وليالأمر", "وليالامر", "ولي", "parent") || null,
+      phone: pick(r, "رقمالطالب", "الموبايل", "الهاتف", "تليفون", "phone") || null,
+      parent_name: pick(r, "اسمولي", "اسمولى") || null,
+      address: pick(r, "العنوان", "عنوان", "address") || null,
+      days: parseDays(pick(r, "الأيام", "الايام", "أيام", "days")),
+      bus_id: BUSES[0]?.id || null
+    })).filter(r => r.full_name);
+    if (!recs.length) return toast("مفيش صفوف فيها عمود الاسم");
+    if (!confirm(`هيتضاف ${recs.length} طالب. تكمل؟`)) return;
+    for (let i = 0; i < recs.length; i += 200) await q(sb.from("students").insert(recs.slice(i, i + 200)));
+    await loadStudents(true); drawStudents(); toast(`اتضاف ${recs.length} طالب`);
+  } catch (err) { toast("الاستيراد فشل: " + err.message, 5000); }
+};
+$("#stExport").onclick = async () => {
+  await loadXLSX();
+  const data = STUDENTS.map(s => ({ "الكود": s.code, "الاسم": s.full_name, "رقم الطالب": s.phone || "", "اسم ولي الأمر": s.parent_name || "", "رقم ولي الأمر": s.parent_phone || "", "العنوان": s.address || "", "الباص": BUSES.find(b => b.id === s.bus_id)?.name || "", "الأيام": daysText(s.days), "الحالة": s.suspended ? "موقوف" : "مفعّل", "تليجرام ولي الأمر": s.parent_chat_id ? "مربوط" : "" }));
+  const ws = XLSX.utils.json_to_sheet(data); ws["!cols"] = [{ wch: 7 }, { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 28 }, { wch: 14 }, { wch: 30 }, { wch: 8 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] }; XLSX.utils.book_append_sheet(wb, ws, "الطلاب");
+  XLSX.writeFile(wb, `طلاب-أتوبيس-الخير-${todayStr()}.xlsx`);
+};
+
+/* =====================================================================
+   التقارير
+   ===================================================================== */
+$("#rpDate").onchange = () => renderReport();
+$("#rpSend").onclick = async () => {
+  try { const r = await fx("report", { date: $("#rpDate").value }); toast(r.sent ? "اتبعت على تليجرام" : "مفيش أدمن مربوط بتليجرام"); }
+  catch (e) { toast(e.message); }
+};
+const REJ = { not_today: "مش يومه", suspended: "موقوف", other_bus: "باص تاني", full: "الباص كامل", unknown: "كارت غير معروف" };
+async function renderReport() {
+  if (!$("#rpDate").value) $("#rpDate").value = todayStr();
+  const date = $("#rpDate").value, dow = dowOf(date);
+  const [trips, studs, staff] = await Promise.all([
+    q(sb.from("trips").select("*").eq("trip_date", date).order("started_at")), loadStudents(), q(sb.from("profiles").select("id, full_name"))]);
+  if (!trips.length) { $("#rpBody").innerHTML = `<div class="panel muted">مفيش رحلات يوم ${DAY_NAMES[dow]} ${date}.</div>`; return; }
+  const ids = trips.map(t => t.id);
+  const [rides, logs] = await Promise.all([
+    q(sb.from("rides").select("*").in("trip_id", ids).order("scanned_at")), q(sb.from("scan_log").select("*").in("trip_id", ids))]);
+  const who = id => staff.find(p => p.id === id)?.full_name || "—";
+  const stu = id => studs.find(s => s.id === id);
+  $("#rpBody").innerHTML = trips.map(t => {
+    const bus = BUSES.find(b => b.id === t.bus_id) || { name: "باص محذوف", capacity: 0 };
+    const tr = rides.filter(r => r.trip_id === t.id), lg = logs.filter(l => l.trip_id === t.id);
+    const sups = [...new Set([t.supervisor_id, ...tr.map(r => r.scanned_by)].filter(Boolean))].map(who);
+    const rode = new Set(tr.map(r => r.student_id));
+    const abs = t.kind === "go" ? studs.filter(s => s.bus_id === t.bus_id && !s.suspended && s.days.includes(dow) && !rode.has(s.id)) : [];
+    return `<div class="panel tripCard ${t.ended_at ? "closed" : ""}">
+      <div class="li" style="border:0"><b>${h(bus.name)} — ${KIND[t.kind]}</b><b>${tr.length} / ${bus.capacity}</b></div>
+      <div class="muted">المشرفين: ${h(sups.join("، ") || "—")}<br>من ${tm(t.started_at)} إلى ${t.ended_at ? tm(t.ended_at) : "لسه شغالة"}</div>
+      ${t.kind === "go" ? `<details ${abs.length ? "open" : ""}><summary>الغياب (${abs.length})</summary>
+        ${abs.map(s => `<div class="li"><span>${h(s.full_name)} <span class="muted">(${s.code})</span></span>
+          ${s.parent_chat_id ? `<span class="tag green">اتبلّغ تليجرام</span>` : s.parent_phone ? `<button class="btn wa" style="min-height:34px;padding:4px 12px" data-abs="${s.id}">واتساب</button>` : `<span class="tag">مفيش رقم</span>`}</div>`).join("") || `<p class="muted">محدش غاب 👌</p>`}</details>` : ""}
+      <details><summary>الركاب (${tr.length})</summary>
+        ${tr.map((r, i) => `<div class="li"><span>${i + 1}. ${h(stu(r.student_id)?.full_name || "—")}</span><span class="muted">${tm(r.scanned_at)} — ${h(who(r.scanned_by))}</span></div>`).join("") || `<p class="muted">مفيش</p>`}</details>
+      ${lg.length ? `<details><summary>محاولات مرفوضة (${lg.length})</summary>
+        ${lg.map(l => `<div class="li"><span>${h(stu(l.student_id)?.full_name || "كارت غير معروف")}</span><span class="tag">${REJ[l.result] || l.result}</span></div>`).join("")}</details>` : ""}
+    </div>`;
+  }).join("");
+  $$("[data-abs]").forEach(b => b.onclick = () => {
+    const s = stu(b.dataset.abs);
+    openWa(s.parent_phone, `السلام عليكم${s.parent_name ? " أ/ " + s.parent_name : ""}
+نحيطكم علمًا إن ${s.full_name} مركبش ${CONFIG.APP} النهارده (${DAY_NAMES[dow]} ${date}) مع إنه يوم ركوبه.
+لو فيه ظرف يرجى التواصل مع الجمعية.
+
+🔔 لتفعيل الإشعارات التلقائية على تليجرام:
+${tgParentLink(s)}
+
+${CONFIG.ORG}`, window.open("", "_blank"));
+  });
 }
 
-function startScanner(){
-  if (!window.isSecureContext) { showCameraError('الصفحة لازم تكون HTTPS.'); showFallback(); return; }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showCameraError('المتصفح ما بيدعمش الوصول للكاميرا هنا.'); showFallback(); return;
+/* =====================================================================
+   الإعدادات
+   ===================================================================== */
+async function renderSettings() {
+  BUSES = await q(sb.from("buses").select("*").order("created_at"));
+  $("#busList").innerHTML = BUSES.map(b => `<div class="li"><span>${h(b.name)} <span class="muted">— ${b.capacity} كرسي${b.active ? "" : " (متوقف)"}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-bus="${b.id}">تعديل</button></div>`).join("") || `<p class="muted">مفيش باصات</p>`;
+  $$("[data-bus]").forEach(b => b.onclick = () => busSheet(BUSES.find(x => x.id === b.dataset.bus)));
+  BUSES = BUSES.filter(b => b.active);
+
+  const users = await q(sb.from("profiles").select("*").order("created_at"));
+  $("#userList").innerHTML = users.map(u => `<div class="li"><span><b>${h(u.full_name)}</b> <span class="muted">${h(u.username)} — ${u.role === "admin" ? "إدارة" : "مشرف"}${u.active ? "" : " — موقوف"}${u.tg_chat_id ? " — تليجرام ✓" : ""}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-user="${u.id}">إدارة</button></div>`).join("");
+  $$("[data-user]").forEach(b => b.onclick = () => userSheet(users.find(x => x.id === b.dataset.user)));
+
+  $("#myTgState").textContent = ME.tg_chat_id ? "حسابك مربوط — التقرير اليومي بيوصلك على تليجرام." : "حسابك مش مربوط لسه.";
+  $("#myTgLink").href = `https://t.me/${CONFIG.BOT_USERNAME}?start=adm_${ME.tg_link_token}`;
+}
+$("#busAdd").onclick = () => busSheet(null);
+function busSheet(b) {
+  sheet(b ? "تعديل باص" : "باص جديد", `
+    <label class="f">اسم الباص</label><input class="inp" id="bName" value="${h(b?.name || "")}" placeholder="أتوبيس الخير 2">
+    <label class="f">عدد الكراسي</label><input class="inp" id="bCap" type="number" inputmode="numeric" min="1" value="${b?.capacity || 28}">
+    ${b ? `<div class="switch"><b>الباص شغال</b><input type="checkbox" id="bAct" ${b.active ? "checked" : ""} style="accent-color:var(--green)"></div>` : ""}
+    <button class="btn block" id="bSave" style="margin-top:10px">حفظ</button>`, (w, close) => {
+    $("#bSave", w).onclick = async () => {
+      const row = { name: $("#bName", w).value.trim(), capacity: +$("#bCap", w).value || 28 };
+      if (!row.name) return toast("اكتب اسم الباص");
+      if (b) row.active = $("#bAct", w).checked;
+      try { await q(b ? sb.from("buses").update(row).eq("id", b.id) : sb.from("buses").insert(row)); close(); renderSettings(); }
+      catch (e) { toast(e.message); }
+    };
+  });
+}
+$("#userAdd").onclick = () => {
+  sheet("مستخدم جديد", `
+    <label class="f">الاسم الكامل</label><input class="inp" id="uName">
+    <label class="f">اسم الدخول (إنجليزي)</label><input class="inp" id="uUser" placeholder="user.name" autocapitalize="none">
+    <label class="f">الرقم السري PIN (6 أرقام)</label><input class="inp" id="uPin" inputmode="numeric" maxlength="12">
+    <label class="f">الصلاحية</label><select class="inp" id="uRole"><option value="supervisor">مشرف — مسح الكروت بس</option><option value="admin">إدارة — كل حاجة</option></select>
+    <div class="err" id="uErr"></div>
+    <button class="btn block" id="uSave">إنشاء الحساب</button>`, (w, close) => {
+    $("#uPin", w).value = String(Math.floor(100000 + Math.random() * 900000));
+    $("#uSave", w).onclick = async () => {
+      $("#uSave", w).disabled = true;
+      try {
+        await fx("create_user", { full_name: $("#uName", w).value.trim(), username: $("#uUser", w).value.trim(), pin: $("#uPin", w).value.trim(), role: $("#uRole", w).value });
+        close(); renderSettings();
+        toast(`اتعمل الحساب — ابعت للمشرف: ${$("#uUser", w).value.trim()} / ${$("#uPin", w).value.trim()}`, 8000);
+      } catch (e) { $("#uErr", w).textContent = e.message; $("#uSave", w).disabled = false; }
+    };
+  });
+};
+function userSheet(u) {
+  const self = u.id === ME.id;
+  sheet(u.full_name, `
+    <p class="muted">اسم الدخول: ${h(u.username)}</p>
+    <label class="f">PIN جديد (6 أرقام)</label>
+    <div class="row"><input class="inp" id="rPin" inputmode="numeric"><button class="btn" id="rSave" style="flex:none">تغيير</button></div>
+    <label class="f">الصلاحية</label><select class="inp" id="rRole" ${self ? "disabled" : ""}><option value="supervisor" ${u.role === "supervisor" ? "selected" : ""}>مشرف</option><option value="admin" ${u.role === "admin" ? "selected" : ""}>إدارة</option></select>
+    ${self ? "" : `<div class="switch"><b>الحساب مفعّل</b><input type="checkbox" id="rAct" ${u.active ? "checked" : ""} style="accent-color:var(--green)"></div>`}
+    <button class="btn block ghost" id="rUpd" style="margin-top:8px" ${self ? "disabled" : ""}>حفظ الصلاحية والحالة</button>`, (w, close) => {
+    $("#rSave", w).onclick = async () => {
+      try { await fx("reset_pin", { user_id: u.id, pin: $("#rPin", w).value.trim() }); toast("الـ PIN اتغير"); }
+      catch (e) { toast(e.message); }
+    };
+    $("#rUpd", w).onclick = async () => {
+      try { await q(sb.from("profiles").update({ role: $("#rRole", w).value, active: $("#rAct", w).checked }).eq("id", u.id)); close(); renderSettings(); }
+      catch (e) { toast(e.message); }
+    };
+  });
+}
+
+/* =====================================================================
+   تشغيل
+   ===================================================================== */
+(async () => {
+  if (CONFIG.SUPABASE_URL.includes("YOUR-PROJECT")) {
+    document.body.innerHTML = `<div style="padding:30px;font-family:sans-serif">افتح index.html وحط بيانات Supabase في CONFIG (راجع ملف SETUP.md).</div>`;
+    return;
   }
-  if (typeof Html5Qrcode === 'undefined') {
-    showCameraError('مكتبة قارئ الـ QR ما اتحمّلتش — اعمل Refresh.'); showFallback(); return;
-  }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-    .then(function(stream){
-      stream.getTracks().forEach(function(t){ t.stop(); });
-      launchQr();
-    })
-    .catch(function(e){ console.error(e); showCameraError(explainErr(e)); showFallback(); });
-}
-
-function launchQr(){
-  try { scanner = new Html5Qrcode("reader"); }
-  catch (e) { showCameraError('فشل تجهيز القارئ: ' + explainErr(e)); showFallback(); return; }
-  var cfg = { fps: 10, qrbox: { width: 240, height: 240 } };
-  scanner.start({ facingMode: "environment" }, cfg, onScan)
-    .catch(function(e){
-      Html5Qrcode.getCameras().then(function(cams){
-        if(!cams || !cams.length){ showCameraError(explainErr(e)); showFallback(); return; }
-        var id = cams[cams.length - 1].id;
-        scanner.start({ deviceId: { exact: id } }, cfg, onScan)
-          .catch(function(e2){ showCameraError(explainErr(e2)); showFallback(); });
-      }).catch(function(){ showCameraError(explainErr(e)); showFallback(); });
-    });
-}
-
-function scanFromFile(input){
-  if(!input.files || !input.files.length) return;
-  var runner = scanner || new Html5Qrcode("reader");
-  runner.scanFile(input.files[0], true)
-    .then(function(text){ onScan(text); })
-    .catch(function(){ showResult({color:'red', msg:'مش قادر أقرا الكود من الصورة — صوّر تاني من قريب'}); })
-    .then(function(){ input.value = ''; });
-}
-
-function manualScan(){
-  var el = document.getElementById('manualId');
-  var v = (el.value || '').trim();
-  if(!v) return;
-  lastText = ''; lastTime = 0;
-  onScan(v);
-  el.value = '';
-}
-
-/* ---------- القراءة والتسجيل ---------- */
-function onScan(text){
-  var now = Date.now();
-  if(busy) return;
-  if(text === lastText && (now - lastTime) < 4000) return;
-  busy = true; lastText = text; lastTime = now;
-
-  api({ fn:'handleScan', token:text, action:MODE, name:USER.name, pin:USER.pin },
-    function(res){
-      showResult(res);
-      if(res && typeof res.seats !== 'undefined' && res.seats !== null)
-        document.getElementById('seats').textContent = res.seats;
-      setTimeout(function(){ busy = false; }, 2500);
-    },
-    function(msg){
-      showResult({color:'red', msg:'حصل خطأ — ' + msg});
-      busy = false;
-    });
-}
-
-function showResult(res){
-  var el = document.getElementById('result');
-  el.style.display = 'block';
-  el.className = res.color || 'blue';
-  var html = '';
-  if(res.photo) html += '<img src="' + res.photo + '" onerror="this.style.display=\'none\'">';
-  if(res.name)  html += '<div class="name">' + res.name + '</div>';
-  html += '<div class="msg">' + (res.msg || '') + '</div>';
-  el.innerHTML = html;
-  if(navigator.vibrate) navigator.vibrate(res.ok ? 120 : [80,60,80]);
-}
-
-function logout(){
-  if(scanner){ try{ scanner.stop(); }catch(e){} }
-  location.reload();
-}
+  const { data: { session } } = await sb.auth.getSession();
+  session ? enter() : showLogin();
+})();
 </script>
 </body>
 </html>

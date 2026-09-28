@@ -1,0 +1,11 @@
+{
+  "name": "أتوبيس الخير — جمعية القوافل",
+  "short_name": "أتوبيس الخير",
+  "start_url": "./",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#2D2F93",
+  "theme_color": "#2D2F93",
+  "icons": [{ "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
+}

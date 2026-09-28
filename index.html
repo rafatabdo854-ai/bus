@@ -255,6 +255,8 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
         <button class="btn ghost" id="stImport">استيراد من Excel</button>
         <button class="btn ghost" id="stExport">تصدير Excel</button>
       </div>
+      <button class="btn ghost block" id="stPhotos" style="margin-top:8px">رفع صور كتير مرة واحدة</button>
+      <input type="file" id="stPhotosFile" accept="image/*" multiple class="hidden">
       <input type="file" id="stImportFile" accept=".xlsx,.xls,.csv" class="hidden">
     </div>
 
@@ -302,9 +304,9 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
    الإعدادات — غيّر دول بس
    ===================================================================== */
 const CONFIG = {
-  SUPABASE_URL: "https://ennwrxqppbstgtbbeuka.supabase.co",
-SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubndyeHFwcGJzdGd0YmJldWthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MTE4MzgsImV4cCI6MjEwNjE4NzgzOH0.tvwwebT1dP4ug2TbkK7_m6cBLbRmF3S3j4FV4fst3aQ",
-BOT_USERNAME: "Bus_qawafek_bot", // اسم البوت من غير @
+  SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
+  BOT_USERNAME: "YourBusBot",          // اسم البوت من غير @
   ORG: "جمعية القوافل للمساعدات الإنسانية",
   APP: "أتوبيس الخير",
   EMAIL_DOMAIN: "bus.local"
@@ -884,34 +886,106 @@ function loadXLSX() {
   if (window.XLSX) return Promise.resolve();
   return new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
 }
+const norm = v => String(v ?? "").trim().toLowerCase().replace(/[\s_\-ـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
 function parseDays(txt) {
-  const t = String(txt || ""), out = [];
-  const keys = [["سبت", 6], ["احد", 0], ["أحد", 0], ["اثنين", 1], ["إثنين", 1], ["اتنين", 1], ["ثلاثاء", 2], ["تلات", 2], ["اربع", 3], ["أربع", 3], ["خميس", 4], ["جمع", 5]];
-  keys.forEach(([k, d]) => { if (t.includes(k) && !out.includes(d)) out.push(d); });
+  const t = norm(txt), out = [];
+  [["سبت", 6], ["احد", 0], ["اثنين", 1], ["اتنين", 1], ["ثلاثاء", 2], ["تلات", 2], ["اربع", 3], ["خميس", 4], ["جمع", 5]]
+    .forEach(([k, d]) => { if (t.includes(k) && !out.includes(d)) out.push(d); });
   return out;
+}
+// أسماء الأعمدة المقبولة (عربي أو إنجليزي — الشيت القديم والتصدير الجديد)
+const COLS = {
+  code: ["الكود", "كود", "كودالطالب", "studentid", "id", "code"],
+  full_name: ["الاسم", "اسمالطالب", "name", "studentname"],
+  phone: ["رقمالطالب", "موبايلالطالب", "تليفونالطالب", "phone", "mobile"],
+  parent_name: ["اسموليالامر", "parentname"],
+  parent_phone: ["رقموليالامر", "موبايلوليالامر", "تليفونوليالامر", "واتسابوليالامر", "parentphone"],
+  address: ["العنوان", "عنوان", "مكانالركوب", "address"],
+  days: ["الايام", "ايامالركوب", "days"],
+  photo_file: ["photourl", "photo", "الصوره", "ملفالصوره"],
+  bus: ["الباص", "bus"],
+  status: ["الحاله", "status"]
+};
+function mapHeaders(keys) {
+  const nk = keys.map(k => [k, norm(k)]), m = {};
+  for (const [f, c] of Object.entries(COLS)) {
+    const hit = nk.find(([, n]) => c.includes(n)) || nk.find(([, n]) => c.some(x => x.length > 3 && n.includes(x)));
+    if (hit) m[f] = hit[0];
+  }
+  return m;
 }
 $("#stImport").onclick = () => $("#stImportFile").click();
 $("#stImportFile").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
-    await loadXLSX();
+    await loadXLSX(); await loadStudents(true);
     const wb = XLSX.read(await f.arrayBuffer());
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-    const pick = (r, ...names) => { const k = Object.keys(r).find(k => names.some(n => k.replace(/\s/g, "").includes(n))); return k ? String(r[k]).trim() : ""; };
-    const recs = rows.map(r => ({
-      full_name: pick(r, "الاسم", "اسم", "name"),
-      parent_phone: pick(r, "ولىالأمر", "وليالأمر", "وليالامر", "ولي", "parent") || null,
-      phone: pick(r, "رقمالطالب", "الموبايل", "الهاتف", "تليفون", "phone") || null,
-      parent_name: pick(r, "اسمولي", "اسمولى") || null,
-      address: pick(r, "العنوان", "عنوان", "address") || null,
-      days: parseDays(pick(r, "الأيام", "الايام", "أيام", "days")),
-      bus_id: BUSES[0]?.id || null
-    })).filter(r => r.full_name);
-    if (!recs.length) return toast("مفيش صفوف فيها عمود الاسم");
-    if (!confirm(`هيتضاف ${recs.length} طالب. تكمل؟`)) return;
-    for (let i = 0; i < recs.length; i += 200) await q(sb.from("students").insert(recs.slice(i, i + 200)));
-    await loadStudents(true); drawStudents(); toast(`اتضاف ${recs.length} طالب`);
-  } catch (err) { toast("الاستيراد فشل: " + err.message, 5000); }
+    if (!rows.length) return toast("الشيت فاضي");
+    const m = mapHeaders(Object.keys(rows[0]));
+    if (!m.full_name && !m.code) return toast("مش لاقي عمود الاسم أو الكود في الشيت", 5000);
+    const byCode = new Map(STUDENTS.map(s => [s.code, s]));
+    const inserts = [], updates = []; let skipped = 0;
+    for (const r of rows) {
+      const val = k => m[k] ? String(r[m[k]] ?? "").trim() : "";
+      const code = parseInt(val("code")) || null, rec = {};
+      if (val("full_name")) rec.full_name = val("full_name");
+      ["phone", "parent_name", "parent_phone", "address", "photo_file"].forEach(k => { if (val(k)) rec[k] = val(k); });
+      if (val("days")) rec.days = parseDays(val("days"));
+      if (val("bus")) { const b = BUSES.find(x => norm(x.name) === norm(val("bus"))); if (b) rec.bus_id = b.id; }
+      if (val("status")) rec.suspended = norm(val("status")).includes("موقوف");
+      const ex = code && byCode.get(code);
+      if (ex) { if (Object.keys(rec).length) updates.push([ex.id, rec]); }
+      else if (rec.full_name) inserts.push({
+        code: code || undefined, full_name: rec.full_name, phone: rec.phone || null, parent_name: rec.parent_name || null,
+        parent_phone: rec.parent_phone || null, address: rec.address || null, photo_file: rec.photo_file || null,
+        days: rec.days || [], bus_id: rec.bus_id || BUSES[0]?.id || null, suspended: !!rec.suspended
+      });
+      else skipped++;
+    }
+    if (!inserts.length && !updates.length) return toast("مفيش حاجة جديدة في الشيت");
+    if (!confirm(`هيتضاف ${inserts.length} طالب جديد، وهيتحدّث ${updates.length}.${skipped ? `\nهيتساب ${skipped} صف من غير اسم.` : ""}\nتكمل؟`)) return;
+    const withCode = inserts.filter(x => x.code), noCode = inserts.filter(x => !x.code).map(({ code, ...x }) => x);
+    for (const grp of [withCode, noCode]) for (let i = 0; i < grp.length; i += 200) await q(sb.from("students").insert(grp.slice(i, i + 200)));
+    for (let i = 0; i < updates.length; i += 10) {
+      await Promise.all(updates.slice(i, i + 10).map(([id, rec]) => q(sb.from("students").update(rec).eq("id", id))));
+      toast(`بحدّث… ${Math.min(i + 10, updates.length)} / ${updates.length}`, 60000);
+    }
+    if (withCode.length) await rpc("sync_code_seq").catch(() => {});
+    await loadStudents(true); drawStudents();
+    toast(`تمام: ${inserts.length} جديد، ${updates.length} اتحدّث`, 5000);
+  } catch (err) { toast("الاستيراد فشل: " + err.message, 6000); }
+};
+
+// رفع صور كتير مرة واحدة — بيطابق اسم الملف مع عمود الصورة أو اسم الطالب
+$("#stPhotos").onclick = () => $("#stPhotosFile").click();
+$("#stPhotosFile").onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  await loadStudents(true);
+  const base = n => norm(String(n).replace(/\.[^.]+$/, "").replace(/\s*\(\d+\)\s*$/, ""));
+  const byFile = new Map(STUDENTS.filter(s => s.photo_file).map(s => [base(s.photo_file), s]));
+  const pairs = [], miss = [];
+  for (const f of files) {
+    const b = base(f.name);
+    const s = byFile.get(b) || STUDENTS.find(x => norm(x.full_name) === b)
+      || STUDENTS.filter(x => b.startsWith(norm(x.full_name))).sort((p, q2) => q2.full_name.length - p.full_name.length)[0];
+    s ? pairs.push([f, s]) : miss.push(f.name);
+  }
+  if (!pairs.length) return toast("مفيش ولا صورة اسمها مطابق لطالب", 5000);
+  if (!confirm(`هيترفع ${pairs.length} صورة.${miss.length ? `\n${miss.length} صورة مش لاقي صاحبها:\n${miss.slice(0, 8).join("\n")}${miss.length > 8 ? "\n…" : ""}` : ""}\nتكمل؟`)) return;
+  let done = 0, fail = 0;
+  const work = async ([f, s]) => {
+    try {
+      const blob = await resizeImage(f), path = `${s.id}-${Date.now()}.jpg`;
+      const { error } = await sb.storage.from("photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+      if (error) throw error;
+      await q(sb.from("students").update({ photo_url: sb.storage.from("photos").getPublicUrl(path).data.publicUrl }).eq("id", s.id));
+    } catch (err) { fail++; }
+    toast(`برفع الصور… ${++done} / ${pairs.length}`, 60000);
+  };
+  for (let i = 0; i < pairs.length; i += 4) await Promise.all(pairs.slice(i, i + 4).map(work));
+  await loadStudents(true); drawStudents();
+  toast(`اترفع ${pairs.length - fail} صورة${fail ? ` — ${fail} فشلوا` : ""}`, 6000);
 };
 $("#stExport").onclick = async () => {
   await loadXLSX();

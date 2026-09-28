@@ -1189,7 +1189,6 @@ async function renderAppPanel() {
   else {
     const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
     st.push(Notification.permission === "denied" ? "الإشعارات مقفولة من إعدادات المتصفح" : sub ? "الإشعارات شغالة على الجهاز ده ✓" : "الإشعارات مش متفعلة هنا");
-    $("#pushOn").classList.toggle("hidden", !!sub);
   }
   $("#appState").textContent = st.join(" — ");
   $("#stInstall").classList.toggle("hidden", !installEvt && !(isIOS && !isStandalone()));
@@ -1206,8 +1205,17 @@ $("#pushOn").onclick = async () => {
   } catch (e) { toast("تفعيل الإشعارات فشل: " + e.message, 6000); }
 };
 $("#pushTest").onclick = async () => {
-  try { const r = await fx("push_test"); toast(r.sent ? `اتبعت لـ ${r.sent} جهاز` : "مفيش أجهزة متفعل عليها الإشعارات لحسابك"); }
-  catch (e) { toast(e.message, 6000); }
+  if (pushSupported()) {
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (!sub) return toast("دوس «تفعيل الإشعارات هنا» الأول");
+    if (Notification.permission !== "granted") return toast("الإشعارات مقفولة — افتحها من إعدادات الموبايل للتطبيق", 6000);
+  }
+  try {
+    const r = await fx("push_test");
+    if (r.sent) toast(`اتبعت ✓ — لو موصلش اتأكد إن الموبايل مش على «عدم الإزعاج»`, 6000);
+    else if (r.errors?.length) sheet("الإشعار موصلش", `<p class="muted">ابعت الكلام ده للمطوّر:</p><div class="linkBox" dir="ltr" style="text-align:left">${r.errors.map(h).join("<br>")}</div>`);
+    else toast(r.devices === 0 ? "الجهاز مش متسجل — دوس «تفعيل الإشعارات هنا» تاني" : "موصلش ومفيش سبب واضح", 6000);
+  } catch (e) { toast(e.message, 6000); }
 };
 async function pushOff() {
   try {

@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2D2F93">
 <title>أتوبيس الخير — جمعية القوافل</title>
-<link rel="icon" href="icon-512.png">
-<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" href="icons/favicon-48.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="أتوبيس الخير">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -163,6 +167,10 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .linkBox{font-size:13px;word-break:break-all;background:var(--paper);border-radius:10px;padding:8px 10px;margin-top:6px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:70;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-size:14px;max-width:90vw}
 .wide{overflow-x:auto}
+#updBar{position:fixed;top:0;left:0;right:0;z-index:80;background:var(--green-deep);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));font-size:14px}
+#updBar span{flex:1}
+#updBar button{background:#fff;color:var(--green-deep);border:0;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer}
+.installBtn{margin-top:12px;background:transparent;border:1.5px solid rgba(255,255,255,.5);color:#fff}
 </style>
 </head>
 <body>
@@ -180,6 +188,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
     <div class="err" id="lgErr"></div>
     <button class="btn block" id="lgBtn">دخول</button>
   </form>
+  <button class="btn installBtn hidden" id="lgInstall" type="button">تثبيت التطبيق على الموبايل</button>
 </section>
 
 <!-- =================== APP =================== -->
@@ -279,6 +288,12 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
         <div id="userList" style="margin-top:8px"></div>
       </div>
       <div class="panel">
+        <b>التطبيق والإشعارات</b>
+        <p class="muted" style="margin:4px 0 8px" id="appState"></p>
+        <button class="btn block hidden" id="stInstall">تثبيت التطبيق</button>
+        <div class="row" style="margin-top:8px"><button class="btn green" id="pushOn">تفعيل الإشعارات هنا</button><button class="btn ghost" id="pushTest">إشعار تجريبي</button></div>
+      </div>
+      <div class="panel">
         <b>تليجرام</b>
         <p class="muted" style="margin:4px 0 8px" id="myTgState"></p>
         <a class="btn ghost block" id="myTgLink" target="_blank" rel="noopener">ربط حسابي بالبوت</a>
@@ -298,18 +313,20 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 <div id="verdict" class="hidden" role="alert"></div>
 <div id="sheetHost"></div>
 <div id="toast" class="hidden" role="status"></div>
+<div id="updBar" class="hidden" role="status"><span>فيه نسخة جديدة من التطبيق</span><button id="updBtn">تحديث</button></div>
 
 <script>
 /* =====================================================================
    الإعدادات — غيّر دول بس
    ===================================================================== */
 const CONFIG = {
-SUPABASE_URL: "https://ennwrxqppbstgtbbeuka.supabase.co",
+  SUPABASE_URL: "https://ennwrxqppbstgtbbeuka.supabase.co",
 SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubndyeHFwcGJzdGd0YmJldWthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MTE4MzgsImV4cCI6MjEwNjE4NzgzOH0.tvwwebT1dP4ug2TbkK7_m6cBLbRmF3S3j4FV4fst3aQ",
-BOT_USERNAME: "Bus_qawafek_bot",     // اسم البوت من غير @
+BOT_USERNAME: "Bus_qawafek_bot", // اسم البوت من غير @
   ORG: "جمعية القوافل للمساعدات الإنسانية",
   APP: "أتوبيس الخير",
-  EMAIL_DOMAIN: "bus.local"
+  EMAIL_DOMAIN: "bus.local",
+  VAPID_PUBLIC_KEY: "BKuuAXNlnAATCnketQ3ejne3hlpQsUyyNn6uuDgNK6dWMCavt8xxGAz9OPXW9t0qFuH5Tlz2iIOD4Tg8cWWNKW4"
 };
 
 /* =====================================================================
@@ -410,7 +427,7 @@ $("#loginForm").addEventListener("submit", async e => {
 });
 $("#btnLogout").onclick = async () => {
   if (TRIP && !confirm("فيه رحلة شغالة. تخرج؟ (الرحلة هتفضل مفتوحة وتقدر ترجعلها)")) return;
-  await stopScanner(); await sb.auth.signOut(); location.reload();
+  await stopScanner(); await pushOff(); await sb.auth.signOut(); location.reload();
 };
 
 async function enter() {
@@ -1059,6 +1076,7 @@ async function renderSettings() {
   $("#userList").innerHTML = users.map(u => `<div class="li"><span><b>${h(u.full_name)}</b> <span class="muted">${h(u.username)} — ${u.role === "admin" ? "إدارة" : "مشرف"}${u.active ? "" : " — موقوف"}${u.tg_chat_id ? " — تليجرام ✓" : ""}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-user="${u.id}">إدارة</button></div>`).join("");
   $$("[data-user]").forEach(b => b.onclick = () => userSheet(users.find(x => x.id === b.dataset.user)));
 
+  renderAppPanel();
   $("#myTgState").textContent = ME.tg_chat_id ? "حسابك مربوط — التقرير اليومي بيوصلك على تليجرام." : "حسابك مش مربوط لسه.";
   $("#myTgLink").href = `https://t.me/${CONFIG.BOT_USERNAME}?start=adm_${ME.tg_link_token}`;
 }
@@ -1115,6 +1133,90 @@ function userSheet(u) {
       catch (e) { toast(e.message); }
     };
   });
+}
+
+/* =====================================================================
+   التطبيق: تثبيت + تحديث تلقائي + إشعارات
+   ===================================================================== */
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+let installEvt = null, SW = null;
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(r => { SW = r; }).catch(() => {});
+}
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installEvt = e;
+  $("#lgInstall").classList.remove("hidden"); $("#stInstall").classList.remove("hidden");
+});
+window.addEventListener("appinstalled", () => { installEvt = null; $("#lgInstall").classList.add("hidden"); $("#stInstall").classList.add("hidden"); toast("التطبيق اتثبت ✓"); });
+async function doInstall() {
+  if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; return; }
+  if (isIOS) toast("من زرار المشاركة ⬆️ في Safari اختار «إضافة إلى الشاشة الرئيسية»", 7000);
+}
+$("#lgInstall").onclick = doInstall; $("#stInstall").onclick = doInstall;
+if (isIOS && !isStandalone()) $("#lgInstall").classList.remove("hidden");
+
+// التحديث: أي push على GitHub → Cloudflare ينشر → التطبيق يلاحظ إن الصفحة اتغيرت ويعرض زرار تحديث
+let PAGE_SIG = null;
+async function pageSig() {
+  const t = await (await fetch(location.pathname, { cache: "no-store" })).text();
+  let hh = 0; for (let i = 0; i < t.length; i++) hh = (hh * 31 + t.charCodeAt(i)) | 0;
+  return hh;
+}
+async function checkUpdate() {
+  try {
+    const sgn = await pageSig();
+    if (PAGE_SIG === null) PAGE_SIG = sgn;
+    else if (sgn !== PAGE_SIG) $("#updBar").classList.remove("hidden");
+    SW && SW.update();
+  } catch (e) {}
+}
+$("#updBtn").onclick = () => location.reload();
+checkUpdate();
+setInterval(checkUpdate, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(); });
+
+function b64ToU8(b) {
+  const pad = "=".repeat((4 - b.length % 4) % 4), raw = atob((b + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+async function renderAppPanel() {
+  const st = [];
+  st.push(isStandalone() ? "شغال كتطبيق ✓" : "مفتوح من المتصفح");
+  if (!pushSupported()) st.push(isIOS && !isStandalone() ? "الإشعارات على الآيفون بتشتغل بعد تثبيت التطبيق" : "الجهاز ده مش بيدعم الإشعارات");
+  else {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    st.push(Notification.permission === "denied" ? "الإشعارات مقفولة من إعدادات المتصفح" : sub ? "الإشعارات شغالة على الجهاز ده ✓" : "الإشعارات مش متفعلة هنا");
+    $("#pushOn").classList.toggle("hidden", !!sub);
+  }
+  $("#appState").textContent = st.join(" — ");
+  $("#stInstall").classList.toggle("hidden", !installEvt && !(isIOS && !isStandalone()));
+}
+$("#pushOn").onclick = async () => {
+  if (!pushSupported()) return toast("الجهاز ده مش بيدعم الإشعارات");
+  if (await Notification.requestPermission() !== "granted") return toast("لازم تسمح بالإشعارات");
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(CONFIG.VAPID_PUBLIC_KEY) });
+    const j = sub.toJSON();
+    await rpc("save_push_sub", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) });
+    toast("الإشعارات اتفعلت ✓"); renderAppPanel();
+  } catch (e) { toast("تفعيل الإشعارات فشل: " + e.message, 6000); }
+};
+$("#pushTest").onclick = async () => {
+  try { const r = await fx("push_test"); toast(r.sent ? `اتبعت لـ ${r.sent} جهاز` : "مفيش أجهزة متفعل عليها الإشعارات لحسابك"); }
+  catch (e) { toast(e.message, 6000); }
+};
+async function pushOff() {
+  try {
+    if (!pushSupported()) return;
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (!sub) return;
+    await sb.from("push_subs").delete().eq("endpoint", sub.endpoint);
+    await sub.unsubscribe();
+  } catch (e) {}
 }
 
 /* =====================================================================

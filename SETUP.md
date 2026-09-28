@@ -120,3 +120,16 @@ $$);
 - **"اسم الدخول أو الرقم السري غلط"**: اسم الدخول بالإنجليزي small، والـ PIN 6 أرقام.
 - **البوت مبيردش**: افتح `https://api.telegram.org/bot<TOKEN>/getWebhookInfo` وشوف `last_error_message`، واتأكد إن Verify JWT مقفول.
 - **كارت اتسرق أو ضاع**: من بيانات الطالب → **إلغاء الكارت وإصدار جديد** — القديم بيبطل فورًا.
+
+---
+
+## تحديث: التطبيق والإشعارات
+
+**ملفات جديدة:** `sw.js` وفولدر `icons/` و`manifest.webmanifest` الجديد، ترفعهم جنب `index.html`. وامسح `icon-512.png` القديم من الفولدر الرئيسي.
+
+1. SQL Editor → شغّل `supabase/migration-02-push.sql`
+2. Edge Functions → function جديدة اسمها `push` → الصق `supabase/functions/push/index.ts` → Deploy → اقفل Verify JWT
+3. Secrets → ضيف `VAPID_PUBLIC_KEY` و`VAPID_PRIVATE_KEY` و`VAPID_CONTACT` (إيميلك)
+4. function `bot` → الصق `index.ts` الجديد → Deploy
+
+**التحديث التلقائي:** أي commit على GitHub → Cloudflare ينشره في أقل من دقيقة → التطبيق بيجيب النسخة الجديدة أول ما يتفتح. ولو كان مفتوح، بيظهر شريط أخضر "فيه نسخة جديدة" بزرار تحديث.

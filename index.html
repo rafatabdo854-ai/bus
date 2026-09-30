@@ -410,7 +410,7 @@ function sheet(title, html, onMount) {
 /* =====================================================================
    الحالة
    ===================================================================== */
-let ME = null, BUSES = [], STUDENTS = null, TRIP = null, SCANNER = null;
+let ME = null, BUSES = [], ALL_BUSES = [], STUDENTS = null, TRIP = null, SCANNER = null;
 let busy = false, lastText = "", lastAt = 0;
 
 /* =====================================================================
@@ -438,7 +438,8 @@ async function enter() {
   ME = prof;
   $("#vLogin").classList.add("hidden"); $("#vApp").classList.remove("hidden");
   $("#hdUser").textContent = `${prof.full_name} — ${prof.role === "admin" ? "إدارة" : "مشرف"}`;
-  BUSES = await q(sb.from("buses").select("*").eq("active", true).order("created_at"));
+  ALL_BUSES = await q(sb.from("buses").select("*").order("created_at"));
+  BUSES = ALL_BUSES.filter(b => b.active);
   if (ME.role === "admin") { $("#nav").classList.remove("hidden"); go("pHome"); }
   else go("pScan");
 }
@@ -569,6 +570,7 @@ function showVerdict(r) {
   if (r.status === "full") sub = `${r.capacity} من ${r.capacity} كرسي`;
   if (r.status === "ok") sub = `كرسي ${r.onboard} من ${r.capacity}`;
   if (r.status === "error") sub = r.msg || "";
+  if (r.status === "other_bus" && r.bus_name) sub = "باصه: " + r.bus_name;
   const el = $("#verdict");
   el.className = v.c;
   el.innerHTML = `
@@ -696,6 +698,7 @@ function drawStudents() {
       <div class="i"><b>${h(s.full_name)}</b><span>كود ${s.code}${s.address ? " — " + h(s.address) : ""}</span>
         <div class="dayDots">${DAY_ORDER.map(d => `<i class="${s.days.includes(d) ? "on" : ""}" title="${DAY_NAMES[d]}">${DAY_LETTER[d]}</i>`).join("")}</div></div>
       ${s.suspended ? `<span class="tag red">موقوف</span>` : ""}
+      ${BUSES.length > 1 ? (busOk(s.bus_id) ? `<span class="tag">${h(BUSES.find(b => b.id === s.bus_id).name)}</span>` : `<span class="tag red">من غير باص</span>`) : ""}
     </button>`).join("") : `<div class="panel muted">مفيش طلاب هنا. دوس "+ طالب" أو استورد من Excel.</div>`;
   $$("#stList .stu").forEach(b => b.onclick = () => editStudent(STUDENTS.find(s => s.id === b.dataset.id)));
 }
@@ -708,9 +711,18 @@ async function resizeImage(file, max = 600) {
   return new Promise(r => c.toBlob(r, "image/jpeg", .85));
 }
 
+const busOk = id => BUSES.some(b => b.id === id);
+const defaultBus = () => BUSES.length === 1 ? BUSES[0].id : null;
+function busPicker(cur) {
+  if (!BUSES.length) return `<p class="muted">مفيش باص شغال — ضيف باص من الإعدادات</p>`;
+  if (BUSES.length === 1) return `<label class="f">الباص</label><div class="inp" style="opacity:.8">${h(BUSES[0].name)}</div>`;
+  return `<label class="f">الباص</label><select class="inp" id="edBus">
+    <option value="" ${busOk(cur) ? "" : "selected"}>— اختار الباص —</option>
+    ${BUSES.map(b => `<option value="${b.id}" ${b.id === cur ? "selected" : ""}>${h(b.name)}</option>`).join("")}</select>`;
+}
 function editStudent(s) {
   const isNew = !s;
-  s = s || { id: crypto.randomUUID(), full_name: "", days: [], bus_id: BUSES[0]?.id, suspended: false };
+  s = s || { id: crypto.randomUUID(), full_name: "", days: [], bus_id: defaultBus(), suspended: false };
   let days = [...(s.days || [])], photoBlob = null;
   sheet(isNew ? "طالب جديد" : s.full_name, `
     <div class="photoPick"><div id="edAv">${avatar(s.photo_url, s.full_name || "؟")}</div>
@@ -721,7 +733,7 @@ function editStudent(s) {
     <div><label class="f">رقم ولي الأمر (واتساب)</label><input class="inp" id="edPPhone" type="tel" inputmode="tel" value="${h(s.parent_phone)}" placeholder="01xxxxxxxxx"></div></div>
     <label class="f">اسم ولي الأمر</label><input class="inp" id="edPName" value="${h(s.parent_name)}">
     <label class="f">العنوان / مكان الركوب</label><input class="inp" id="edAddr" value="${h(s.address)}">
-    ${BUSES.length > 1 ? `<label class="f">الباص</label><select class="inp" id="edBus">${BUSES.map(b => `<option value="${b.id}" ${b.id === s.bus_id ? "selected" : ""}>${h(b.name)}</option>`).join("")}</select>` : ""}
+    ${busPicker(s.bus_id)}
     <label class="f">أيام الركوب</label>
     <div class="dayPick" id="edDays">${DAY_ORDER.map(d => `<button type="button" data-d="${d}" class="${days.includes(d) ? "on" : ""}">${DAY_SHORT[d]}</button>`).join("")}</div>
     <div class="switch"><b>إيقاف من الركوب</b><input type="checkbox" id="edSusp" ${s.suspended ? "checked" : ""}></div>
@@ -747,13 +759,14 @@ function editStudent(s) {
     $("#edSave", w).onclick = async () => {
       const name = $("#edName", w).value.trim();
       if (!name) return $("#edErr", w).textContent = "اكتب اسم الطالب";
+      if (BUSES.length > 1 && !$("#edBus", w).value) return $("#edErr", w).textContent = "اختار الباص";
       if (!days.length && !$("#edSusp", w).checked && !confirm("مفيش أيام ركوب متحددة — الطالب مش هيقدر يركب. تحفظ كده؟")) return;
       $("#edSave", w).disabled = true;
       try {
         const row = {
           id: s.id, full_name: name, phone: $("#edPhone", w).value.trim() || null, parent_phone: $("#edPPhone", w).value.trim() || null,
           parent_name: $("#edPName", w).value.trim() || null, address: $("#edAddr", w).value.trim() || null,
-          bus_id: $("#edBus", w)?.value || s.bus_id || BUSES[0]?.id || null, days,
+          bus_id: BUSES.length === 1 ? BUSES[0].id : ($("#edBus", w)?.value || null), days,
           suspended: $("#edSusp", w).checked, suspend_reason: $("#edSusp", w).checked ? ($("#edReason", w).value.trim() || null) : null,
           notes: $("#edNotes", w).value.trim() || null
         };
@@ -956,7 +969,7 @@ $("#stImportFile").onchange = async e => {
       else if (rec.full_name) inserts.push({
         code: code || undefined, full_name: rec.full_name, phone: rec.phone || null, parent_name: rec.parent_name || null,
         parent_phone: rec.parent_phone || null, address: rec.address || null, photo_file: rec.photo_file || null,
-        days: rec.days || [], bus_id: rec.bus_id || BUSES[0]?.id || null, suspended: !!rec.suspended
+        days: rec.days || [], bus_id: rec.bus_id || defaultBus(), suspended: !!rec.suspended
       });
       else skipped++;
     }
@@ -1033,7 +1046,7 @@ async function renderReport() {
   const who = id => staff.find(p => p.id === id)?.full_name || "—";
   const stu = id => studs.find(s => s.id === id);
   $("#rpBody").innerHTML = trips.map(t => {
-    const bus = BUSES.find(b => b.id === t.bus_id) || { name: "باص محذوف", capacity: 0 };
+    const bus = ALL_BUSES.find(b => b.id === t.bus_id) || { name: "باص محذوف", capacity: 0 };
     const tr = rides.filter(r => r.trip_id === t.id), lg = logs.filter(l => l.trip_id === t.id);
     const sups = [...new Set([t.supervisor_id, ...tr.map(r => r.scanned_by)].filter(Boolean))].map(who);
     const rode = new Set(tr.map(r => r.student_id));
@@ -1067,10 +1080,10 @@ ${CONFIG.ORG}`, window.open("", "_blank"));
    الإعدادات
    ===================================================================== */
 async function renderSettings() {
-  BUSES = await q(sb.from("buses").select("*").order("created_at"));
-  $("#busList").innerHTML = BUSES.map(b => `<div class="li"><span>${h(b.name)} <span class="muted">— ${b.capacity} كرسي${b.active ? "" : " (متوقف)"}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-bus="${b.id}">تعديل</button></div>`).join("") || `<p class="muted">مفيش باصات</p>`;
-  $$("[data-bus]").forEach(b => b.onclick = () => busSheet(BUSES.find(x => x.id === b.dataset.bus)));
-  BUSES = BUSES.filter(b => b.active);
+  ALL_BUSES = await q(sb.from("buses").select("*").order("created_at"));
+  BUSES = ALL_BUSES.filter(b => b.active);
+  $("#busList").innerHTML = ALL_BUSES.map(b => `<div class="li"><span>${h(b.name)} <span class="muted">— ${b.capacity} كرسي${b.active ? "" : " (متوقف)"}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-bus="${b.id}">تعديل</button></div>`).join("") || `<p class="muted">مفيش باصات</p>`;
+  $$("[data-bus]").forEach(b => b.onclick = () => busSheet(ALL_BUSES.find(x => x.id === b.dataset.bus)));
 
   const users = await q(sb.from("profiles").select("*").order("created_at"));
   $("#userList").innerHTML = users.map(u => `<div class="li"><span><b>${h(u.full_name)}</b> <span class="muted">${h(u.username)} — ${u.role === "admin" ? "إدارة" : "مشرف"}${u.active ? "" : " — موقوف"}${u.tg_chat_id ? " — تليجرام ✓" : ""}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-user="${u.id}">إدارة</button></div>`).join("");
@@ -1086,7 +1099,17 @@ function busSheet(b) {
     <label class="f">اسم الباص</label><input class="inp" id="bName" value="${h(b?.name || "")}" placeholder="أتوبيس الخير 2">
     <label class="f">عدد الكراسي</label><input class="inp" id="bCap" type="number" inputmode="numeric" min="1" value="${b?.capacity || 28}">
     ${b ? `<div class="switch"><b>الباص شغال</b><input type="checkbox" id="bAct" ${b.active ? "checked" : ""} style="accent-color:var(--green)"></div>` : ""}
-    <button class="btn block" id="bSave" style="margin-top:10px">حفظ</button>`, (w, close) => {
+    <button class="btn block" id="bSave" style="margin-top:10px">حفظ</button>
+    ${b ? `<div class="panel" style="margin-top:14px"><b>حذف الباص</b>
+      <label class="f">طلاب الباص ده يتنقلوا على</label>
+      <select class="inp" id="bMove">${ALL_BUSES.filter(x => x.id !== b.id && x.active).map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}<option value="">— من غير باص —</option></select>
+      <button class="btn danger block" id="bDel" style="margin-top:8px">حذف الباص</button>
+      <p class="muted" style="margin-top:6px">رحلاته القديمة هتفضل في التقارير.</p></div>` : ""}`, (w, close) => {
+    if (b) $("#bDel", w).onclick = async () => {
+      if (!confirm(`حذف "${b.name}" نهائيًا؟`)) return;
+      try { const r = await rpc("delete_bus", { p_bus: b.id, p_move_to: $("#bMove", w).value || null }); close(); renderSettings(); toast(`اتحذف — اتنقل ${r.moved} طالب`); }
+      catch (e) { toast(e.message); }
+    };
     $("#bSave", w).onclick = async () => {
       const row = { name: $("#bName", w).value.trim(), capacity: +$("#bCap", w).value || 28 };
       if (!row.name) return toast("اكتب اسم الباص");

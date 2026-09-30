@@ -1,6 +1,6 @@
 // أتوبيس الخير — Service Worker
 // الشبكة الأول دايمًا: أي تحديث على GitHub بيوصل أول ما التطبيق يفتح. الكاش بيستخدم بس لو النت فاصل.
-const CACHE = "bus-shell-v1";
+const CACHE = "bus-shell-v2";
 const SHELL = ["./", "manifest.webmanifest", "logo.jpg", "icons/icon-192.png", "icons/icon-512.png", "icons/badge-96.png"];
 
 self.addEventListener("install", e => {

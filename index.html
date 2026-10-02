@@ -62,7 +62,10 @@ label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px;font-w
 .btn:disabled{opacity:.55}
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .btn.ghost{color:#C9CBFF} }
 .row{display:flex;gap:10px}
-.row>*{flex:1}
+.row>*{flex:1;min-width:0}
+/* خانات التاريخ على الموبايل ليها عرض أدنى ثابت بيخليها تطلع برّه الكارت */
+input[type=date].inp{min-width:0;max-width:100%;box-sizing:border-box;display:block;-webkit-appearance:none;appearance:none;min-height:48px;text-align:right;padding-inline:10px}
+input[type=date].inp::-webkit-date-and-time-value{text-align:right}
 .err{color:var(--red);font-size:14px;min-height:22px;margin-top:8px}
 
 /* ---------- app shell ---------- */

@@ -158,6 +158,16 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .sheet h3 button{background:var(--paper);border:0;border-radius:10px;width:36px;height:36px;cursor:pointer}
 .photoPick{display:flex;align-items:center;gap:14px;margin:6px 0}
 .photoPick .av{width:88px;height:88px;font-size:34px}
+.dayBar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:4px 0 10px}
+.dayBar button{padding:7px 0 6px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);cursor:pointer;font-size:12px;line-height:1.2;position:relative;color:inherit}
+.dayBar button b{display:block;font:20px/1.1 var(--display);font-weight:400;color:var(--indigo)}
+.dayBar button.today{border-color:var(--green)}
+.dayBar button.today::after{content:"";position:absolute;top:4px;inset-inline-end:4px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.dayBar button.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.dayBar button.on b{color:#fff}
+.daySum{background:var(--card);border:1px solid var(--line);border-inline-start:5px solid var(--indigo);border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.daySum b{font:22px var(--display);font-weight:400}
+.daySum .tag{margin-top:6px;display:inline-block}
 .dayPick{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .dayPick button{padding:10px 0;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);font-size:13px;cursor:pointer}
 .dayPick button.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
@@ -254,10 +264,12 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
       </div>
       <div class="chips" id="stFilter">
         <button class="chip on" data-f="all">الكل</button>
-        <button class="chip" data-f="today">يومهم النهارده</button>
         <button class="chip" data-f="susp">موقوفين</button>
         <button class="chip" data-f="notg">ولي الأمر مش مربوط</button>
       </div>
+      <div class="muted" style="font-size:13px">دوس على يوم تشوف مين الطلاب اللي معادهم فيه:</div>
+      <div class="dayBar" id="stDays"></div>
+      <div id="stDaySum"></div>
       <div class="muted" id="stCount" style="margin-bottom:8px"></div>
       <div id="stList"></div>
       <div class="row" style="margin-top:12px">
@@ -657,10 +669,11 @@ async function renderHome() {
   const active = studs.filter(s => !s.suspended);
   const expected = active.filter(s => s.days.includes(dow));
   $("#homeStats").innerHTML = `
-    <div class="stat"><b>${expected.length}</b><span>يومهم النهارده</span></div>
+    <div class="stat" id="statToday" style="cursor:pointer"><b>${expected.length}</b><span>يومهم النهارده ←</span></div>
     <div class="stat"><b>${active.length}</b><span>طالب مفعّل</span></div>
     <div class="stat"><b>${studs.length - active.length}</b><span>موقوف</span></div>
     <div class="stat"><b>${studs.filter(s => !s.parent_chat_id).length}</b><span>ولي أمر مش مربوط بتليجرام</span></div>`;
+  $("#statToday").onclick = () => { stDay = dow; stFilter = "all"; $$("#stFilter .chip").forEach(x => x.classList.toggle("on", x.dataset.f === "all")); go("pStudents"); };
   $("#homeTrips").innerHTML = BUSES.map(b => {
     const exp = expected.filter(s => s.bus_id === b.id).length;
     const bt = trips.filter(x => x.bus_id === b.id);
@@ -681,7 +694,7 @@ $("#homeReport").onclick = async () => {
 /* =====================================================================
    الطلاب
    ===================================================================== */
-let stFilter = "all";
+let stFilter = "all", stDay = null; // stDay: 0=الأحد … 6=السبت، null = كل الأيام
 $("#stQ").oninput = () => drawStudents();
 $$("#stFilter .chip").forEach(c => c.onclick = () => { $$("#stFilter .chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); stFilter = c.dataset.f; drawStudents(); });
 $("#stAdd").onclick = () => editStudent(null);
@@ -689,7 +702,25 @@ async function renderStudents() { await loadStudents(); drawStudents(); }
 function drawStudents() {
   const v = $("#stQ").value.trim().toLowerCase(), dow = dowOf(todayStr());
   let list = STUDENTS.filter(s => !v || s.full_name.toLowerCase().includes(v) || String(s.code) === v || (s.phone || "").includes(v) || (s.parent_phone || "").includes(v));
-  if (stFilter === "today") list = list.filter(s => !s.suspended && s.days.includes(dow));
+  // شريط الأيام: عدد الطلاب المفعّلين في كل يوم
+  $("#stDays").innerHTML = DAY_ORDER.map(d => {
+    const n = STUDENTS.filter(s => !s.suspended && s.days.includes(d)).length;
+    return `<button type="button" data-d="${d}" class="${d === stDay ? "on" : ""} ${d === dow ? "today" : ""}" title="${DAY_NAMES[d]}${d === dow ? " (النهارده)" : ""}"><b>${n}</b>${DAY_SHORT[d]}</button>`;
+  }).join("");
+  $$("#stDays button").forEach(b => b.onclick = () => { const d = +b.dataset.d; stDay = stDay === d ? null : d; drawStudents(); });
+
+  if (stDay !== null) {
+    list = list.filter(s => s.days.includes(stDay) && (stFilter === "susp" ? s.suspended : !s.suspended));
+    const all = STUDENTS.filter(s => s.days.includes(stDay));
+    const act = all.filter(s => !s.suspended), susp = all.length - act.length;
+    const perBus = BUSES.length > 1 ? BUSES.map(b => {
+      const n = act.filter(s => s.bus_id === b.id).length;
+      return `<span class="tag ${n > b.capacity ? "red" : ""}">${h(b.name)}: ${n} / ${b.capacity}</span>`;
+    }).join(" ") + (act.some(s => !busOk(s.bus_id)) ? ` <span class="tag red">من غير باص: ${act.filter(s => !busOk(s.bus_id)).length}</span>` : "")
+      : (BUSES[0] && act.length > BUSES[0].capacity ? `<span class="tag red">أكتر من سعة الباص (${BUSES[0].capacity} كرسي)</span>` : "");
+    $("#stDaySum").innerHTML = `<div class="daySum">يوم ${DAY_NAMES[stDay]}${stDay === dow ? " (النهارده)" : ""}: <b>${act.length}</b> طالب
+      ${susp ? `<span class="muted"> + ${susp} موقوف</span>` : ""}<div>${perBus}</div></div>`;
+  } else $("#stDaySum").innerHTML = "";
   if (stFilter === "susp") list = list.filter(s => s.suspended);
   if (stFilter === "notg") list = list.filter(s => !s.parent_chat_id);
   $("#stCount").textContent = `${list.length} طالب`;
@@ -1019,10 +1050,11 @@ $("#stPhotosFile").onchange = async e => {
 };
 $("#stExport").onclick = async () => {
   await loadXLSX();
-  const data = STUDENTS.map(s => ({ "الكود": s.code, "الاسم": s.full_name, "رقم الطالب": s.phone || "", "اسم ولي الأمر": s.parent_name || "", "رقم ولي الأمر": s.parent_phone || "", "العنوان": s.address || "", "الباص": BUSES.find(b => b.id === s.bus_id)?.name || "", "الأيام": daysText(s.days), "الحالة": s.suspended ? "موقوف" : "مفعّل", "تليجرام ولي الأمر": s.parent_chat_id ? "مربوط" : "" }));
+  const src = stDay === null ? STUDENTS : STUDENTS.filter(s => !s.suspended && s.days.includes(stDay));
+  const data = src.map(s => ({ "الكود": s.code, "الاسم": s.full_name, "رقم الطالب": s.phone || "", "اسم ولي الأمر": s.parent_name || "", "رقم ولي الأمر": s.parent_phone || "", "العنوان": s.address || "", "الباص": BUSES.find(b => b.id === s.bus_id)?.name || "", "الأيام": daysText(s.days), "الحالة": s.suspended ? "موقوف" : "مفعّل", "تليجرام ولي الأمر": s.parent_chat_id ? "مربوط" : "" }));
   const ws = XLSX.utils.json_to_sheet(data); ws["!cols"] = [{ wch: 7 }, { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 28 }, { wch: 14 }, { wch: 30 }, { wch: 8 }, { wch: 10 }];
   const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] }; XLSX.utils.book_append_sheet(wb, ws, "الطلاب");
-  XLSX.writeFile(wb, `طلاب-أتوبيس-الخير-${todayStr()}.xlsx`);
+  XLSX.writeFile(wb, stDay === null ? `طلاب-أتوبيس-الخير-${todayStr()}.xlsx` : `طلاب-يوم-${DAY_NAMES[stDay]}-${todayStr()}.xlsx`);
 };
 
 /* =====================================================================

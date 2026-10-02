@@ -866,16 +866,6 @@ async function renderCard(s) {
   x.font = "400 23px 'IBM Plex Sans Arabic'"; x.fillStyle = "#5E6190";
   const bus = BUSES.find(b => b.id === s.bus_id);
   if (bus) x.fillText(bus.name, TX, 362);
-  // الأيام (سطر أو اتنين)
-  x.font = "700 24px 'IBM Plex Sans Arabic'"; x.fillStyle = "#14163A";
-  const words = DAY_ORDER.filter(d => s.days.includes(d)).map(d => DAY_NAMES[d]);
-  const lines = []; let cur = "أيام الركوب: ";
-  (words.length ? words : ["لم تُحدد"]).forEach((wd, i) => {
-    const add = (i ? "، " : "") + wd;
-    if (x.measureText(cur + add).width > TW && i) { lines.push(cur + "،"); cur = wd; } else cur += add;
-  });
-  lines.push(cur);
-  lines.slice(0, 3).forEach((ln, i) => x.fillText(ln, TX, 408 + i * 36));
   // QR
   const qr = qrcode(0, "M"); qr.addData("QB:" + s.qr_token); qr.make();
   const n = qr.getModuleCount(), QS = 270, cell = QS / n, QX = 44, QY = 196;

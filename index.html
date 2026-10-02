@@ -168,6 +168,10 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .daySum{background:var(--card);border:1px solid var(--line);border-inline-start:5px solid var(--indigo);border-radius:14px;padding:10px 12px;margin-bottom:10px}
 .daySum b{font:22px var(--display);font-weight:400}
 .daySum .tag{margin-top:6px;display:inline-block}
+.holBanner{background:#FFF4E0;border:1px solid #F0C67A;color:#7A4B00;border-radius:14px;padding:10px 12px;margin-bottom:12px}
+.chgItem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.chgItem:last-child{border-bottom:0}
+.chgItem button{background:none;border:0;color:var(--red);cursor:pointer;font-size:13px}
 .dayPick{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .dayPick button{padding:10px 0;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);font-size:13px;cursor:pointer}
 .dayPick button.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
@@ -242,6 +246,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
     <!-- ---------- HOME (admin) ---------- -->
     <div id="pHome" class="page hidden">
       <h2 class="pg" id="homeDay"></h2>
+      <div id="homeHol"></div>
       <div id="tgBanner" class="panel hidden">
         <b>اربط تليجرام علشان يوصلك تقرير آخر اليوم</b>
         <p class="muted" style="margin:4px 0 10px">افتح الرابط ودوس Start في البوت.</p>
@@ -264,6 +269,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
       </div>
       <div class="chips" id="stFilter">
         <button class="chip on" data-f="all">الكل</button>
+        <button class="chip" data-f="rep">غياب متكرر</button>
         <button class="chip" data-f="susp">موقوفين</button>
         <button class="chip" data-f="notg">ولي الأمر مش مربوط</button>
       </div>
@@ -298,6 +304,14 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
       <div class="panel">
         <div class="row" style="align-items:center"><b>المشرفين والإدارة</b><button class="btn ghost" id="userAdd" style="flex:none">+ مستخدم</button></div>
         <div id="userList" style="margin-top:8px"></div>
+      </div>
+      <div class="panel">
+        <b>الإجازات</b>
+        <p class="muted" style="margin:4px 0 8px">في يوم الإجازة المسح بيتقفل ومفيش إشعارات غياب بتتبعت.</p>
+        <div class="row"><div><label class="f">من</label><input class="inp" type="date" id="holFrom"></div><div><label class="f">إلى (اختياري)</label><input class="inp" type="date" id="holTo"></div></div>
+        <input class="inp" id="holReason" placeholder="السبب (مثلاً: إجازة عيد)" style="margin-top:8px">
+        <button class="btn block" id="holAdd" style="margin-top:8px">إضافة إجازة</button>
+        <div id="holList" style="margin-top:8px"></div>
       </div>
       <div class="panel">
         <b>التطبيق والإشعارات</b>
@@ -423,6 +437,21 @@ function sheet(title, html, onMount) {
    الحالة
    ===================================================================== */
 let ME = null, BUSES = [], ALL_BUSES = [], STUDENTS = null, TRIP = null, SCANNER = null;
+let STATS = new Map(); // حضور كل طالب آخر 30 يوم
+const STREAK = 3;      // غياب متكرر = غاب المرات دي ورا بعض في أيامه
+
+// سياق يوم معيّن: إجازة + استثناءات الطلاب
+async function dayCtx(date) {
+  const [hol, ch] = await Promise.all([
+    q(sb.from("holidays").select("*").eq("day", date).maybeSingle()),
+    q(sb.from("day_changes").select("*").eq("day", date))]);
+  return { hol, add: new Set(ch.filter(c => c.kind === "add").map(c => c.student_id)),
+           skip: new Map(ch.filter(c => c.kind === "skip").map(c => [c.student_id, c.note || ""])) };
+}
+// الطالب معاده في اليوم ده؟
+const dueOn = (s, ctx, dow) => !ctx.hol && !s.suspended &&
+  ((s.days.includes(dow) && !ctx.skip.has(s.id)) || ctx.add.has(s.id));
+const fmtDate = d => { const [y, m, dd] = d.split("-"); return `${DAY_NAMES[dowOf(d)]} ${+dd}/${+m}`; };
 let busy = false, lastText = "", lastAt = 0;
 
 /* =====================================================================
@@ -491,6 +520,8 @@ async function initScan() {
   }
   localStorage.removeItem("bus.trip");
   showPicker();
+  const hol = await q(sb.from("holidays").select("reason").eq("day", t).maybeSingle()).catch(() => null);
+  if (hol) $("#pickErr").textContent = `النهارده إجازة${hol.reason ? " — " + hol.reason : ""}. مفيش رحلات.`;
 }
 function showPicker() {
   TRIP = null;
@@ -516,7 +547,8 @@ async function startTrip(busId, kind) {
   localStorage.setItem("bus.trip", JSON.stringify({ id: TRIP.id, date: TRIP.trip_date }));
   $("#tripPick").classList.add("hidden"); $("#tripLive").classList.remove("hidden");
   $("#lvBus").textContent = TRIP.bus_name; $("#lvKind").textContent = KIND[TRIP.kind];
-  $("#lvExp").textContent = TRIP.kind === "go" ? `متوقع ${TRIP.expected}` : "";
+  $("#lvExp").textContent = TRIP.kind === "go" ? `متوقع ${TRIP.expected}` : `راحوا ${TRIP.went ?? 0}`;
+  if (TRIP.kind === "back") refreshMissing();
   renderSeats();
   startScanner();
 }
@@ -544,6 +576,14 @@ async function startScanner() {
     $("#reader").innerHTML = `<div class="camErr">الكاميرا مش شغالة. اسمح للموقع باستخدام الكاميرا من إعدادات المتصفح، أو استخدم زرار "يدوي".<br><br><button class="btn" onclick="startScanner()">حاول تاني</button></div>`;
   }
 }
+// في العودة: كام واحد راح الصبح ولسه مرجعش
+async function refreshMissing() {
+  if (!TRIP || TRIP.kind !== "back") return;
+  const rows = await rpc("trip_missing", { p_trip: TRIP.id }).catch(() => null);
+  if (!rows || !TRIP) return;
+  TRIP.missing = rows;
+  $("#lvExp").textContent = `راحوا ${TRIP.went ?? 0} — ${rows.length ? `لسه ${rows.length} مرجعوش` : "كله رجع ✓"}`;
+}
 async function stopScanner() {
   if (!SCANNER) return;
   try { await SCANNER.stop(); SCANNER.clear(); } catch (e) {}
@@ -566,6 +606,8 @@ const VERDICT = {
   ok:          { c: "ok",   t: "اركب",              ok: true },
   already:     { c: "info", t: "ركب قبل كده",        ok: true,  s: "متسجّل في الرحلة دي" },
   not_today:   { c: "bad",  t: "مش يومه النهارده" },
+  excused:     { c: "warn", t: "واخد إذن النهارده",  s: "الإدارة مسجّلاه غياب بعذر" },
+  holiday:     { c: "warn", t: "النهارده إجازة" },
   suspended:   { c: "bad",  t: "موقوف من الركوب" },
   other_bus:   { c: "warn", t: "مسجّل على باص تاني" },
   full:        { c: "warn", t: "الباص كامل" },
@@ -579,6 +621,7 @@ function showVerdict(r) {
   let sub = v.s || "";
   if (r.status === "not_today" && st) sub = "أيامه: " + daysText(st.days);
   if (r.status === "suspended" && st?.reason) sub = st.reason;
+  if (r.status === "excused" && r.note) sub = r.note;
   if (r.status === "full") sub = `${r.capacity} من ${r.capacity} كرسي`;
   if (r.status === "ok") sub = `كرسي ${r.onboard} من ${r.capacity}`;
   if (r.status === "error") sub = r.msg || "";
@@ -592,6 +635,7 @@ function showVerdict(r) {
     <div class="tap">اضغط في أي حتة للمتابعة</div>`;
   beep(!!v.ok);
   if (typeof r.onboard === "number" && TRIP) { TRIP.onboard = r.onboard; renderSeats(); }
+  if (r.status === "ok") refreshMissing();
   clearTimeout(vT);
   vT = setTimeout(hideVerdict, v.ok ? 1700 : 3800);
 }
@@ -624,11 +668,21 @@ $("#actUndo").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 $("#actList").onclick = async () => {
-  const rows = await rpc("trip_riders", { p_trip: TRIP.id }).catch(() => []);
-  sheet(`الركاب (${rows.length})`, rows.length ? rows.map(r => `<div class="stu" style="cursor:default">${avatar(r.photo, r.name)}<div class="i"><b>${h(r.name)}</b><span>كود ${r.code} — ${tm(r.scanned_at)}</span></div></div>`).join("") : `<p class="muted">لسه محدش ركب.</p>`);
+  const [rows, miss] = await Promise.all([rpc("trip_riders", { p_trip: TRIP.id }).catch(() => []),
+    TRIP.kind === "back" ? rpc("trip_missing", { p_trip: TRIP.id }).catch(() => []) : []]);
+  const card = (r, sub) => `<div class="stu" style="cursor:default">${avatar(r.photo, r.name)}<div class="i"><b>${h(r.name)}</b><span>كود ${r.code}${sub ? " — " + sub : ""}</span></div></div>`;
+  sheet(`الركاب (${rows.length})`,
+    (TRIP.kind === "back" ? `<details ${miss.length ? "open" : ""} style="margin-bottom:8px"><summary style="color:${miss.length ? "var(--red)" : "inherit"}">راحوا الصبح ولسه مرجعوش (${miss.length})</summary>
+      ${miss.map(r => card(r)).join("") || `<p class="muted">كله رجع ✓</p>`}</details><b>رجعوا</b>` : "")
+    + (rows.length ? rows.map(r => card(r, tm(r.scanned_at))).join("") : `<p class="muted">لسه محدش ركب.</p>`));
 };
 $("#actEnd").onclick = async () => {
-  if (!confirm(`إنهاء رحلة ${KIND[TRIP.kind]}؟${TRIP.kind === "go" ? "\nهيتبعت إشعار غياب لأولياء أمور اللي يومهم ومركبوش." : ""}`)) return;
+  let warn = TRIP.kind === "go" ? "\nهيتبعت إشعار غياب لأولياء أمور اللي يومهم ومركبوش." : "";
+  if (TRIP.kind === "back") {
+    const miss = await rpc("trip_missing", { p_trip: TRIP.id }).catch(() => []);
+    if (miss.length) warn = `\n\n⚠️ لسه ${miss.length} راحوا الصبح ومرجعوش:\n${miss.slice(0, 10).map(m => "• " + m.name).join("\n")}${miss.length > 10 ? "\n…" : ""}\n\nالإدارة هيوصلها تنبيه بالأسماء دي.`;
+  }
+  if (!confirm(`إنهاء رحلة ${KIND[TRIP.kind]}؟${warn}`)) return;
   $("#actEnd").disabled = true;
   try {
     await rpc("end_trip", { p_trip: TRIP.id });
@@ -636,10 +690,13 @@ $("#actEnd").onclick = async () => {
     await stopScanner();
     const done = { ...TRIP };
     localStorage.removeItem("bus.trip");
-    const abs = r.absent || [];
+    const abs = r.absent || [], miss = r.missing || [];
     sheet("الرحلة خلصت", `
       <div class="stats"><div class="stat"><b>${done.onboard}</b><span>ركبوا من ${done.capacity}</span></div>
-      <div class="stat"><b>${done.kind === "go" ? abs.length : "—"}</b><span>غياب</span></div></div>
+      ${done.kind === "go" ? `<div class="stat"><b>${abs.length}</b><span>غياب</span></div>`
+        : `<div class="stat" ${miss.length ? `style="border-color:var(--red)"` : ""}><b ${miss.length ? `style="color:var(--red)"` : ""}>${miss.length}</b><span>راحوا ومرجعوش</span></div>`}</div>
+      ${miss.map(m => `<div class="li"><span>${h(m.name)} <span class="muted">(${m.code})</span></span><span class="tag red">مرجعش</span></div>`).join("")}
+      ${miss.length ? `<p class="muted">اتبعت تنبيه للإدارة بالأسماء دي.</p>` : ""}
       ${r.err ? `<p class="err">${h(r.err)}</p>` : ""}
       ${abs.map(a => `<div class="li"><span>${h(a.name)} <span class="muted">(${a.code})</span></span>${a.notified ? `<span class="tag green">اتبلّغ</span>` : `<span class="tag">ولي الأمر مش مربوط</span>`}</div>`).join("")}
       ${abs.some(a => !a.notified) ? `<p class="muted">الإدارة هتشوف الأسماء دي في التقرير وتبعتلهم واتساب.</p>` : ""}
@@ -653,7 +710,10 @@ $("#actEnd").onclick = async () => {
    الرئيسية (أدمن)
    ===================================================================== */
 async function loadStudents(force) {
-  if (!STUDENTS || force) STUDENTS = await q(sb.from("students").select("*").order("full_name"));
+  if (!STUDENTS || force) {
+    const [st, stats] = await Promise.all([q(sb.from("students").select("*").order("full_name")), rpc("attendance_stats", { p_days: 30 }).catch(() => [])]);
+    STUDENTS = st; STATS = new Map(stats.map(r => [r.student_id, r]));
+  }
   return STUDENTS;
 }
 async function renderHome() {
@@ -663,16 +723,21 @@ async function renderHome() {
   $("#tgBanner").classList.toggle("hidden", !!ME.tg_chat_id);
   $("#tgLinkBtn").href = tgUrl;
 
-  const [studs, trips] = await Promise.all([loadStudents(true), q(sb.from("trips").select("*").eq("trip_date", t).order("started_at"))]);
+  const [studs, trips, ctx] = await Promise.all([loadStudents(true), q(sb.from("trips").select("*").eq("trip_date", t).order("started_at")), dayCtx(t)]);
+  $("#homeHol").innerHTML = ctx.hol ? `<div class="holBanner">🏖️ <b>النهارده إجازة</b>${ctx.hol.reason ? " — " + h(ctx.hol.reason) : ""}. المسح مقفول ومفيش إشعارات غياب.</div>` : "";
   const rides = trips.length ? await q(sb.from("rides").select("trip_id").in("trip_id", trips.map(x => x.id))) : [];
   const cnt = id => rides.filter(r => r.trip_id === id).length;
   const active = studs.filter(s => !s.suspended);
-  const expected = active.filter(s => s.days.includes(dow));
+  const expected = studs.filter(s => dueOn(s, ctx, dow));
+  const rep = active.filter(s => (STATS.get(s.id)?.streak || 0) >= STREAK);
   $("#homeStats").innerHTML = `
     <div class="stat" id="statToday" style="cursor:pointer"><b>${expected.length}</b><span>يومهم النهارده ←</span></div>
     <div class="stat"><b>${active.length}</b><span>طالب مفعّل</span></div>
     <div class="stat"><b>${studs.length - active.length}</b><span>موقوف</span></div>
-    <div class="stat"><b>${studs.filter(s => !s.parent_chat_id).length}</b><span>ولي أمر مش مربوط بتليجرام</span></div>`;
+    <div class="stat"><b>${studs.filter(s => !s.parent_chat_id).length}</b><span>ولي أمر مش مربوط بتليجرام</span></div>
+    ${rep.length ? `<div class="stat" id="statRep" style="cursor:pointer;border-color:var(--red)"><b style="color:var(--red)">${rep.length}</b><span>غياب متكرر (${STREAK}+ مرات ورا بعض) ←</span></div>` : ""}
+    ${ctx.skip.size || ctx.add.size ? `<div class="stat"><b>${ctx.add.size}</b><span>جايين النهارده استثناء${ctx.skip.size ? ` — ${ctx.skip.size} بعذر` : ""}</span></div>` : ""}`;
+  if ($("#statRep")) $("#statRep").onclick = () => { stDay = null; stFilter = "rep"; $$("#stFilter .chip").forEach(x => x.classList.toggle("on", x.dataset.f === "rep")); go("pStudents"); };
   $("#statToday").onclick = () => { stDay = dow; stFilter = "all"; $$("#stFilter .chip").forEach(x => x.classList.toggle("on", x.dataset.f === "all")); go("pStudents"); };
   $("#homeTrips").innerHTML = BUSES.map(b => {
     const exp = expected.filter(s => s.bus_id === b.id).length;
@@ -682,7 +747,7 @@ async function renderHome() {
         <div class="tripCard ${x.ended_at ? "closed" : ""}" style="padding:8px 10px;margin-top:8px">
           <div class="li" style="border:0;padding:0"><span>${KIND[x.kind]} — ${x.ended_at ? "خلصت " + tm(x.ended_at) : "شغالة من " + tm(x.started_at)}</span><b>${n} / ${b.capacity}</b></div>
           <div class="meter"><i style="width:${Math.min(100, n / b.capacity * 100)}%"></i></div></div>`; }).join("")
-      : `<p class="muted" style="margin:6px 0 0">لسه مفيش رحلات النهارده.</p>`}</div>`;
+      : `<p class="muted" style="margin:6px 0 0">${ctx.hol ? "إجازة." : "لسه مفيش رحلات النهارده."}</p>`}</div>`;
   }).join("");
 }
 $("#homeScan").onclick = () => go("pScan");
@@ -722,13 +787,14 @@ function drawStudents() {
       ${susp ? `<span class="muted"> + ${susp} موقوف</span>` : ""}<div>${perBus}</div></div>`;
   } else $("#stDaySum").innerHTML = "";
   if (stFilter === "susp") list = list.filter(s => s.suspended);
+  if (stFilter === "rep") list = list.filter(s => !s.suspended && (STATS.get(s.id)?.streak || 0) >= STREAK).sort((a, b) => STATS.get(b.id).streak - STATS.get(a.id).streak);
   if (stFilter === "notg") list = list.filter(s => !s.parent_chat_id);
   $("#stCount").textContent = `${list.length} طالب`;
   $("#stList").innerHTML = list.length ? list.map(s => `
     <button class="stu" data-id="${s.id}">${avatar(s.photo_url, s.full_name)}
       <div class="i"><b>${h(s.full_name)}</b><span>كود ${s.code}${s.address ? " — " + h(s.address) : ""}</span>
         <div class="dayDots">${DAY_ORDER.map(d => `<i class="${s.days.includes(d) ? "on" : ""}" title="${DAY_NAMES[d]}">${DAY_LETTER[d]}</i>`).join("")}</div></div>
-      ${s.suspended ? `<span class="tag red">موقوف</span>` : ""}
+      ${s.suspended ? `<span class="tag red">موقوف</span>` : (STATS.get(s.id)?.streak || 0) >= STREAK ? `<span class="tag red">غاب ${STATS.get(s.id).streak} ورا بعض</span>` : ""}
       ${BUSES.length > 1 ? (busOk(s.bus_id) ? `<span class="tag">${h(BUSES.find(b => b.id === s.bus_id).name)}</span>` : `<span class="tag red">من غير باص</span>`) : ""}
     </button>`).join("") : `<div class="panel muted">مفيش طلاب هنا. دوس "+ طالب" أو استورد من Excel.</div>`;
   $$("#stList .stu").forEach(b => b.onclick = () => editStudent(STUDENTS.find(s => s.id === b.dataset.id)));
@@ -774,6 +840,25 @@ function editStudent(s) {
     <button class="btn block" id="edSave">${isNew ? "إضافة الطالب" : "حفظ التعديلات"}</button>
     ${isNew ? "" : `
     <div class="panel" style="margin-top:14px">
+      <b>الحضور آخر 30 يوم</b>
+      <p style="margin:4px 0 0">${attText(s)}</p>
+    </div>
+    <div class="panel">
+      <b>تغيير يوم لمرة واحدة</b>
+      <p class="muted" style="margin:4px 0 8px">من غير ما تغيّر أيامه الأساسية.</p>
+      <div id="chgList"><p class="muted">بيحمّل…</p></div>
+      <select class="inp" id="chgKind" style="margin-top:8px">
+        <option value="move">نقل يوم من أيامه ليوم تاني</option>
+        <option value="add">ييجي يوم زيادة</option>
+        <option value="skip">مش جاي يوم من أيامه (بعذر)</option>
+      </select>
+      <div class="row" style="margin-top:8px"><div id="chgFromW"><label class="f" id="chgFromL">مش جاي يوم</label><input class="inp" type="date" id="chgFrom"></div>
+        <div id="chgToW"><label class="f">وييجي بداله يوم</label><input class="inp" type="date" id="chgTo"></div></div>
+      <input class="inp" id="chgNote" placeholder="ملاحظة (اختياري) — بتظهر للمشرف وفي التقرير" style="margin-top:8px">
+      <div class="err" id="chgErr"></div>
+      <button class="btn ghost block" id="chgAdd">حفظ التغيير</button>
+    </div>
+    <div class="panel">
       <b>الكارت وولي الأمر</b>
       <p class="muted" style="margin:4px 0 8px">تليجرام ولي الأمر: ${s.parent_chat_id ? "مربوط ✓" : "مش مربوط — رابط الربط بيتبعت مع الكارت"}</p>
       <div class="row"><button class="btn green" id="edCard">كارت الطالب</button><button class="btn ghost" id="edCopy">نسخ رابط تليجرام</button></div>
@@ -814,6 +899,7 @@ function editStudent(s) {
       } catch (e) { $("#edErr", w).textContent = e.message; $("#edSave", w).disabled = false; }
     };
     if (isNew) return;
+    dayChanges(s, w);
     $("#edCard", w).onclick = () => { close(); cardSheet(s); };
     $("#edCopy", w).onclick = async () => { await navigator.clipboard.writeText(tgParentLink(s)).catch(() => {}); toast("الرابط اتنسخ"); };
     $("#edReissue", w).onclick = async () => {
@@ -827,6 +913,64 @@ function editStudent(s) {
       catch (e) { toast(e.message); }
     };
   });
+}
+
+function attText(s) {
+  const a = STATS.get(s.id);
+  if (!a || !a.due) return `<span class="muted">مفيش رحلات في أيامه لسه.</span>`;
+  const pct = Math.round(a.rode / a.due * 100);
+  return `ركب <b>${a.rode}</b> من <b>${a.due}</b> مرة (${pct}%)`
+    + (a.streak >= STREAK ? `<br><span class="tag red">غاب آخر ${a.streak} مرات ورا بعض</span>` : a.streak ? `<br><span class="muted">غاب آخر ${a.streak === 1 ? "مرة" : a.streak + " مرات"}</span>` : "")
+    + (a.last_ride ? `<br><span class="muted">آخر ركوب: ${fmtDate(a.last_ride)}</span>` : "");
+}
+
+// تغيير يوم لمرة واحدة (جدول day_changes)
+async function dayChanges(s, w) {
+  const today = todayStr();
+  const draw = async () => {
+    const rows = await q(sb.from("day_changes").select("*").eq("student_id", s.id).gte("day", today).order("day")).catch(() => []);
+    $("#chgList", w).innerHTML = rows.length ? rows.map(c => `<div class="chgItem"><span>${c.kind === "add" ? "➕ جاي" : "➖ مش جاي"} ${fmtDate(c.day)}${c.note ? ` <span class="muted">— ${h(c.note)}</span>` : ""}</span><button data-cid="${c.id}">إلغاء</button></div>`).join("")
+      : `<p class="muted" style="margin:0">مفيش تغييرات جاية.</p>`;
+    $$("#chgList [data-cid]", w).forEach(b => b.onclick = async () => {
+      try { await q(sb.from("day_changes").delete().eq("id", +b.dataset.cid)); draw(); } catch (e) { toast(e.message); }
+    });
+  };
+  const kindUI = () => {
+    const k = $("#chgKind", w).value;
+    $("#chgFromW", w).classList.toggle("hidden", k === "add");
+    $("#chgToW", w).classList.toggle("hidden", k === "skip");
+    $("#chgFromL", w).textContent = "مش جاي يوم";
+  };
+  $("#chgKind", w).onchange = kindUI; kindUI();
+  $("#chgFrom", w).min = $("#chgTo", w).min = today;
+  $("#chgAdd", w).onclick = async () => {
+    const k = $("#chgKind", w).value, from = $("#chgFrom", w).value, to = $("#chgTo", w).value, note = $("#chgNote", w).value.trim() || null;
+    const err = m => $("#chgErr", w).textContent = m;
+    const rows = [];
+    if (k !== "add") {
+      if (!from) return err("اختار اليوم اللي مش جاي فيه");
+      if (!s.days.includes(dowOf(from))) return err(`${DAY_NAMES[dowOf(from)]} مش من أيامه أصلًا`);
+      rows.push({ student_id: s.id, day: from, kind: "skip", note });
+    }
+    if (k !== "skip") {
+      if (!to) return err("اختار اليوم اللي هييجي فيه");
+      if (s.days.includes(dowOf(to))) return err(`${DAY_NAMES[dowOf(to)]} من أيامه أصلًا`);
+      if (from && from === to) return err("اختار يومين مختلفين");
+      rows.push({ student_id: s.id, day: to, kind: "add", note });
+    }
+    if (k === "add" || k === "move") {
+      const n = STUDENTS.filter(x => x.id !== s.id && x.bus_id === s.bus_id && !x.suspended && x.days.includes(dowOf(to))).length;
+      const cap = BUSES.find(b => b.id === s.bus_id)?.capacity;
+      if (cap && n >= cap && !confirm(`يوم ${DAY_NAMES[dowOf(to)]} فيه ${n} طالب والباص ${cap} كرسي. تكمّل؟`)) return;
+    }
+    err("");
+    try {
+      await q(sb.from("day_changes").upsert(rows.map(r => ({ ...r, created_by: ME.id })), { onConflict: "student_id,day" }));
+      $("#chgFrom", w).value = $("#chgTo", w).value = $("#chgNote", w).value = "";
+      toast("اتحفظ"); draw();
+    } catch (e) { err(e.message); }
+  };
+  draw();
 }
 
 /* =====================================================================
@@ -1055,30 +1199,44 @@ $("#rpSend").onclick = async () => {
   try { const r = await fx("report", { date: $("#rpDate").value }); toast(r.sent ? "اتبعت على تليجرام" : "مفيش أدمن مربوط بتليجرام"); }
   catch (e) { toast(e.message); }
 };
-const REJ = { not_today: "مش يومه", suspended: "موقوف", other_bus: "باص تاني", full: "الباص كامل", unknown: "كارت غير معروف" };
+const REJ = { not_today: "مش يومه", excused: "واخد إذن", holiday: "إجازة", suspended: "موقوف", other_bus: "باص تاني", full: "الباص كامل", unknown: "كارت غير معروف" };
 async function renderReport() {
   if (!$("#rpDate").value) $("#rpDate").value = todayStr();
   const date = $("#rpDate").value, dow = dowOf(date);
-  const [trips, studs, staff] = await Promise.all([
-    q(sb.from("trips").select("*").eq("trip_date", date).order("started_at")), loadStudents(), q(sb.from("profiles").select("id, full_name"))]);
-  if (!trips.length) { $("#rpBody").innerHTML = `<div class="panel muted">مفيش رحلات يوم ${DAY_NAMES[dow]} ${date}.</div>`; return; }
+  const [trips, studs, staff, ctx] = await Promise.all([
+    q(sb.from("trips").select("*").eq("trip_date", date).order("started_at")), loadStudents(), q(sb.from("profiles").select("id, full_name")), dayCtx(date)]);
+  const holHtml = ctx.hol ? `<div class="holBanner">🏖️ <b>إجازة</b>${ctx.hol.reason ? " — " + h(ctx.hol.reason) : ""}</div>` : "";
+  if (!trips.length) { $("#rpBody").innerHTML = holHtml + `<div class="panel muted">مفيش رحلات يوم ${DAY_NAMES[dow]} ${date}.</div>`; return; }
   const ids = trips.map(t => t.id);
   const [rides, logs] = await Promise.all([
     q(sb.from("rides").select("*").in("trip_id", ids).order("scanned_at")), q(sb.from("scan_log").select("*").in("trip_id", ids))]);
   const who = id => staff.find(p => p.id === id)?.full_name || "—";
   const stu = id => studs.find(s => s.id === id);
-  $("#rpBody").innerHTML = trips.map(t => {
+  $("#rpBody").innerHTML = holHtml + trips.map(t => {
     const bus = ALL_BUSES.find(b => b.id === t.bus_id) || { name: "باص محذوف", capacity: 0 };
     const tr = rides.filter(r => r.trip_id === t.id), lg = logs.filter(l => l.trip_id === t.id);
     const sups = [...new Set([t.supervisor_id, ...tr.map(r => r.scanned_by)].filter(Boolean))].map(who);
     const rode = new Set(tr.map(r => r.student_id));
-    const abs = t.kind === "go" ? studs.filter(s => s.bus_id === t.bus_id && !s.suspended && s.days.includes(dow) && !rode.has(s.id)) : [];
+    const abs = t.kind === "go" ? studs.filter(s => s.bus_id === t.bus_id && dueOn(s, ctx, dow) && !rode.has(s.id)) : [];
+    const exc = t.kind === "go" ? studs.filter(s => s.bus_id === t.bus_id && ctx.skip.has(s.id)) : [];
+    let miss = [];
+    if (t.kind === "back") {
+      const goIds = trips.filter(x => x.kind === "go" && x.bus_id === t.bus_id).map(x => x.id);
+      const backIds = new Set(trips.filter(x => x.kind === "back").map(x => x.id));
+      const came = new Set(rides.filter(r => backIds.has(r.trip_id)).map(r => r.student_id));
+      miss = [...new Set(rides.filter(r => goIds.includes(r.trip_id) && !came.has(r.student_id)).map(r => r.student_id))].map(stu).filter(Boolean);
+    }
+    const noBack = t.kind === "go" && date < todayStr() && !trips.some(x => x.kind === "back" && x.bus_id === t.bus_id);
     return `<div class="panel tripCard ${t.ended_at ? "closed" : ""}">
       <div class="li" style="border:0"><b>${h(bus.name)} — ${KIND[t.kind]}</b><b>${tr.length} / ${bus.capacity}</b></div>
       <div class="muted">المشرفين: ${h(sups.join("، ") || "—")}<br>من ${tm(t.started_at)} إلى ${t.ended_at ? tm(t.ended_at) : "لسه شغالة"}</div>
       ${t.kind === "go" ? `<details ${abs.length ? "open" : ""}><summary>الغياب (${abs.length})</summary>
-        ${abs.map(s => `<div class="li"><span>${h(s.full_name)} <span class="muted">(${s.code})</span></span>
-          ${s.parent_chat_id ? `<span class="tag green">اتبلّغ تليجرام</span>` : s.parent_phone ? `<button class="btn wa" style="min-height:34px;padding:4px 12px" data-abs="${s.id}">واتساب</button>` : `<span class="tag">مفيش رقم</span>`}</div>`).join("") || `<p class="muted">محدش غاب 👌</p>`}</details>` : ""}
+        ${abs.map(s => `<div class="li"><span>${h(s.full_name)} <span class="muted">(${s.code})</span>${(STATS.get(s.id)?.streak || 0) >= STREAK ? ` <span class="tag red">${STATS.get(s.id).streak} ورا بعض</span>` : ""}</span>
+          ${s.parent_chat_id ? `<span class="tag green">اتبلّغ تليجرام</span>` : s.parent_phone ? `<button class="btn wa" style="min-height:34px;padding:4px 12px" data-abs="${s.id}">واتساب</button>` : `<span class="tag">مفيش رقم</span>`}</div>`).join("") || `<p class="muted">محدش غاب 👌</p>`}</details>
+        ${exc.length ? `<details><summary>بعذر (${exc.length})</summary>${exc.map(s => `<div class="li"><span>${h(s.full_name)}</span><span class="muted">${h(ctx.skip.get(s.id) || "")}</span></div>`).join("")}</details>` : ""}
+        ${noBack ? `<p class="err" style="min-height:0">⚠️ مفيش رحلة عودة اتسجلت للباص ده</p>` : ""}` : ""}
+      ${t.kind === "back" ? `<details ${miss.length ? "open" : ""}><summary style="color:${miss.length ? "var(--red)" : "inherit"}">راحوا ومرجعوش (${miss.length})</summary>
+        ${miss.map(s => `<div class="li"><span>${h(s.full_name)} <span class="muted">(${s.code})</span></span>${s.parent_phone ? `<a class="btn ghost" style="min-height:34px;padding:4px 12px" href="tel:${h(s.parent_phone)}">اتصال بولي الأمر</a>` : `<span class="tag">مفيش رقم</span>`}</div>`).join("") || `<p class="muted">كل اللي راحوا رجعوا 👌</p>`}</details>` : ""}
       <details><summary>الركاب (${tr.length})</summary>
         ${tr.map((r, i) => `<div class="li"><span>${i + 1}. ${h(stu(r.student_id)?.full_name || "—")}</span><span class="muted">${tm(r.scanned_at)} — ${h(who(r.scanned_by))}</span></div>`).join("") || `<p class="muted">مفيش</p>`}</details>
       ${lg.length ? `<details><summary>محاولات مرفوضة (${lg.length})</summary>
@@ -1111,11 +1269,38 @@ async function renderSettings() {
   $("#userList").innerHTML = users.map(u => `<div class="li"><span><b>${h(u.full_name)}</b> <span class="muted">${h(u.username)} — ${u.role === "admin" ? "إدارة" : "مشرف"}${u.active ? "" : " — موقوف"}${u.tg_chat_id ? " — تليجرام ✓" : ""}</span></span><button class="btn ghost" style="min-height:34px;padding:4px 12px" data-user="${u.id}">إدارة</button></div>`).join("");
   $$("[data-user]").forEach(b => b.onclick = () => userSheet(users.find(x => x.id === b.dataset.user)));
 
+  renderHolidays();
   renderAppPanel();
   $("#myTgState").textContent = ME.tg_chat_id ? "حسابك مربوط — التقرير اليومي بيوصلك على تليجرام." : "حسابك مش مربوط لسه.";
   $("#myTgLink").href = `https://t.me/${CONFIG.BOT_USERNAME}?start=adm_${ME.tg_link_token}`;
 }
 $("#busAdd").onclick = () => busSheet(null);
+
+async function renderHolidays() {
+  const today = todayStr();
+  $("#holFrom").min = $("#holTo").min = today;
+  const rows = await q(sb.from("holidays").select("*").gte("day", today).order("day")).catch(() => []);
+  $("#holList").innerHTML = rows.length ? rows.map(r => `<div class="chgItem"><span>🏖️ ${fmtDate(r.day)} <span class="muted">${r.day}${r.reason ? " — " + h(r.reason) : ""}</span></span><button data-hol="${r.day}">إلغاء</button></div>`).join("")
+    : `<p class="muted" style="margin:0">مفيش إجازات جاية.</p>`;
+  $$("[data-hol]").forEach(b => b.onclick = async () => {
+    if (!confirm(`إلغاء إجازة ${fmtDate(b.dataset.hol)}؟`)) return;
+    try { await q(sb.from("holidays").delete().eq("day", b.dataset.hol)); renderHolidays(); } catch (e) { toast(e.message); }
+  });
+}
+$("#holAdd").onclick = async () => {
+  const from = $("#holFrom").value, to = $("#holTo").value || from, reason = $("#holReason").value.trim() || null;
+  if (!from) return toast("اختار التاريخ");
+  if (to < from) return toast("تاريخ النهاية قبل البداية");
+  const days = [];
+  for (let d = new Date(from + "T12:00:00Z"); d <= new Date(to + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
+  if (days.length > 60) return toast("الفترة طويلة أوي (أقصى 60 يوم)");
+  if (days.includes(todayStr()) && !confirm("النهارده من ضمن الإجازة — المسح هيتقفل دلوقتي. تكمّل؟")) return;
+  try {
+    await q(sb.from("holidays").upsert(days.map(day => ({ day, reason, created_by: ME.id })), { onConflict: "day" }));
+    $("#holFrom").value = $("#holTo").value = $("#holReason").value = "";
+    toast(days.length > 1 ? `اتضاف ${days.length} يوم إجازة` : "اتضافت الإجازة"); renderHolidays();
+  } catch (e) { toast(e.message); }
+};
 function busSheet(b) {
   sheet(b ? "تعديل باص" : "باص جديد", `
     <label class="f">اسم الباص</label><input class="inp" id="bName" value="${h(b?.name || "")}" placeholder="أتوبيس الخير 2">
